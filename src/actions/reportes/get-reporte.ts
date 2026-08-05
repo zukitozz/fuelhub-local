@@ -1,26 +1,6 @@
 "use server";
 import { executeQuery } from '@/utils/db';
-import { IReporteCierreDiario, IReporteCierreDiarioConteo, IReporteCierreDiarioDetalle, IReporteCierrePorDia, IReporteCierreTurno, IReporteCierreTurnoProductos, IReporteComprobantes, IReporteDeclaracionMensual } from "@/interfaces";
-
-export async function obtieneReporteCierrePorDiaGalones(fecha: string, includeProducts: boolean): Promise<IReporteCierrePorDia[]> { 
-    const date: Date = new Date(fecha);
-    date.setDate(date.getDate() + Number.parseInt(process.env.NEXT_PUBLIC_CIERRE_DIA || "0"));
-    const nextDayString: string = date.toISOString().split('T')[0];    
-    const query =     `
-            select ctd.codigo,ctd.producto,
-            SUM(ctd.total_cantidad) + SUM(ctd.calibracion_cantidad) + SUM(ctd.despacho_cantidad) as cantidad,
-            SUM(ctd.total_soles) + SUM(ctd.calibracion_soles) + SUM(ctd.despacho_soles) as total
-            from Cierreturnos t 
-            inner join Cierredias d on t.CierrediaId = d.id 
-            inner join Cierreturnosdetalle ctd on t.id = ctd.CierreturnoId 
-            where CAST(d.fecha AS DATE) = '${nextDayString}' ${includeProducts?"":"and ctd.medida = 'GLL' "}
-            group by ctd.codigo, ctd.producto
-        `;
-    const cierres = await executeQuery<IReporteCierrePorDia[]>(
-        process.env.DB_DATABASE_AUXILIAR||"", query
-    );    
-    return cierres;
-}
+import { IReporteCierreDiario, IReporteCierreDiarioConteo, IReporteCierreDiarioDetalle, IReporteCierreTurno, IReporteCierreTurnoProductos, IReporteComprobantes, IReporteDeclaracionMensual } from "@/interfaces";
 
 export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promise<IReporteCierreDiario> {
     const date: Date = new Date(fecha);
@@ -50,7 +30,8 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
                 inner join Items i on c.id = i.ComprobanteId
                 inner join Cierreturnos t on c.CierreturnoId = t.id
                 inner join Cierredias d on t.CierrediaId = d.id
-                where CAST(d.fecha AS DATE) = '${nextDayString}' and c.tipo_comprobante in ('01','03','50','51','52')
+                where CAST(d.fecha AS DATE) = '${nextDayString}' and i.medida = 'GLL'
+                and c.tipo_comprobante in ('01','03','50','51','52')
                 group by i.codigo_producto, i.descripcion,
                 CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END
             )
@@ -68,19 +49,19 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
         `;
     // El total de ventas de una seccion no es la suma de sus filas: un comprobante puede
     // llevar varios productos y se contaria una vez por cada uno.
+    // Solo combustible: las secciones de otros productos muestran unidades, no comprobantes.
     const queryConteo = `
             select
             CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END as tipo,
-            CASE when i.medida = 'GLL' then 1 else 0 END as es_combustible,
             COUNT(distinct c.id) as ventas
             from Comprobantes c
             inner join Items i on c.id = i.ComprobanteId
             inner join Cierreturnos t on c.CierreturnoId = t.id
             inner join Cierredias d on t.CierrediaId = d.id
-            where CAST(d.fecha AS DATE) = '${nextDayString}' and c.tipo_comprobante in ('01','03','50','51','52')
+            where CAST(d.fecha AS DATE) = '${nextDayString}' and i.medida = 'GLL'
+            and c.tipo_comprobante in ('01','03','50','51','52')
             group by
-            CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END,
-            CASE when i.medida = 'GLL' then 1 else 0 END
+            CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END
         `;
 
     const db = process.env.DB_DATABASE_AUXILIAR||"";

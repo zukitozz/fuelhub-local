@@ -62,23 +62,27 @@ export const ReporteDiario = () => {
         const combustibles = filas.filter(f => f.medida === 'GLL');
         const otros = filas.filter(f => f.medida !== 'GLL');
 
-        // Comprobantes de combustible del tipo indicado
-        const ventasCombustible = (tipo: IReporteCierreDiarioDetalle['tipo']) =>
-            conteos.find(c => c.tipo === tipo && c.es_combustible === 1)?.ventas ?? 0;
-        // Un comprobante pertenece a un solo tipo, asi que sumar entre tipos no duplica
-        const ventasOtros = conteos
-            .filter(c => c.es_combustible === 0)
-            .reduce((acc, c) => acc + c.ventas, 0);
+        // Comprobantes distintos del tipo indicado
+        const ventasDe = (tipo: IReporteCierreDiarioDetalle['tipo']) =>
+            conteos.find(c => c.tipo === tipo)?.ventas ?? 0;
 
         const resultado: ISeccion[] = [
-            construyeSeccion('Ventas', combustibles.filter(f => f.tipo === 'VENTA'), ventasCombustible('VENTA')),
-            construyeSeccion('Nota de despacho', combustibles.filter(f => f.tipo === 'DESPACHO'), ventasCombustible('DESPACHO')),
-            construyeSeccion('Serafin', combustibles.filter(f => f.tipo === 'SERAFIN'), ventasCombustible('SERAFIN')),
+            construyeSeccion('Ventas', combustibles.filter(f => f.tipo === 'VENTA'), ventasDe('VENTA')),
+            construyeSeccion('Nota de despacho', combustibles.filter(f => f.tipo === 'DESPACHO'), ventasDe('DESPACHO')),
+            construyeSeccion('Serafin', combustibles.filter(f => f.tipo === 'SERAFIN'), ventasDe('SERAFIN')),
         ];
-        if (isChecked) resultado.push(construyeSeccion('Otros productos', otros, ventasOtros, true));
+        // Otros productos muestra cantidad de unidades, no comprobantes: no usa `ventas`
+        if (isChecked) resultado.push(construyeSeccion('Otros productos', otros, 0, true));
 
         return resultado.filter(seccion => seccion.filas.length > 0);
     }, [data, isChecked]);
+
+    // Solo se suman los soles: el volumen mezcla galones con unidades y las ventas
+    // contarian dos veces un comprobante que llevo combustible y otros productos.
+    const totalGeneral = useMemo(
+        () => secciones.reduce((acc, seccion) => acc + seccion.soles, 0),
+        [secciones]
+    );
 
     const handleDateChange = (e: ChangeEvent<HTMLInputElement>) => setDate(e.target.value);
     const handleCheckChange = (e: ChangeEvent<HTMLInputElement>) => setIsChecked(e.target.checked);
@@ -110,6 +114,8 @@ export const ReporteDiario = () => {
                 Number(seccion.soles.toFixed(2))
             ]);
         });
+        rows.push([]);
+        rows.push(['TOTAL GENERAL', '', '', Number(totalGeneral.toFixed(2))]);
 
         const worksheet = XLSX.utils.aoa_to_sheet(rows);
         worksheet['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
@@ -182,8 +188,14 @@ export const ReporteDiario = () => {
             ) : (
                 <div className="overflow-x-auto border rounded-xl">
                     <table className="min-w-full text-sm">
-                        {secciones.map(seccion => (
-                            <tbody key={seccion.titulo} className="divide-y divide-gray-100 border-b last:border-b-0">
+                        {secciones.map((seccion, index) => (
+                            <tbody key={seccion.titulo} className="divide-y divide-gray-100">
+                                {/* Separacion entre secciones para distinguirlas de un vistazo */}
+                                {index > 0 && (
+                                    <tr aria-hidden="true">
+                                        <td colSpan={4} className="h-4 bg-white"></td>
+                                    </tr>
+                                )}
                                 {/* Cada seccion trae su propio encabezado: Otros productos mide en
                                     unidades y no en galones, asi que sus dos columnas del medio
                                     significan otra cosa que las de combustible. */}
@@ -227,6 +239,17 @@ export const ReporteDiario = () => {
                                 </tr>
                             </tbody>
                         ))}
+                        <tfoot>
+                            <tr aria-hidden="true">
+                                <td colSpan={4} className="h-4 bg-white"></td>
+                            </tr>
+                            <tr className="bg-blue-50 border-t-2 border-blue-300">
+                                <td className="px-4 py-2 font-bold text-gray-900 uppercase tracking-wider">Total general</td>
+                                <td className="px-4 py-2"></td>
+                                <td className="px-4 py-2"></td>
+                                <td className="px-4 py-2 text-right font-bold text-blue-700">{currencyFormat(totalGeneral)}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             )}
