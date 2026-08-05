@@ -5,36 +5,114 @@ import useSWR from 'swr';
 import * as XLSX from 'xlsx';
 import { IoDownloadOutline, IoCalendarOutline } from "react-icons/io5";
 
-import { obtieneReporteCierrePorDiaGalones } from '@/actions';
+import { obtieneReporteCierreDiarioDetallado } from '@/actions';
 import { currencyFormat, toLocaleOnlyDate } from "@/utils";
-import { IReporteCierrePorDia } from '@/interfaces';
+import { IReporteCierreDiarioDetalle } from '@/interfaces';
 
-const fetcher = (fecha: string, includeProducts: boolean) => 
-    obtieneReporteCierrePorDiaGalones(fecha, includeProducts);
+const fetcher = (fecha: string) => obtieneReporteCierreDiarioDetallado(fecha);
+
+interface ISeccion {
+    titulo: string;
+    filas: IReporteCierreDiarioDetalle[];
+    ventas: number;
+    volumen: number;
+    soles: number;
+    // Los no combustibles se miden por unidad, no por galonaje. En esas secciones las
+    // columnas son CANTIDAD y PRECIO UNIT. (cantidad x precio = soles), mientras que en
+    // combustible son VENTAS (despachos) y VOLUMEN en galones.
+    porUnidad: boolean;
+}
+
+// `ventas` llega aparte porque es un conteo de comprobantes distintos: un comprobante con
+// varios productos aparece en varias filas y sumarlas lo contaria mas de una vez.
+const construyeSeccion = (
+    titulo: string,
+    filas: IReporteCierreDiarioDetalle[],
+    ventas: number,
+    porUnidad = false
+): ISeccion => ({
+    titulo,
+    filas,
+    ventas,
+    porUnidad,
+    ...filas.reduce((acc, curr) => ({
+        volumen: acc.volumen + curr.volumen,
+        soles: acc.soles + curr.soles,
+    }), { volumen: 0, soles: 0 })
+});
+
+// Precio efectivamente cobrado en el dia. Coincide con el precio del maestro de
+// productos salvo que se hayan aplicado descuentos.
+const precioUnitario = (fila: IReporteCierreDiarioDetalle) =>
+    fila.volumen ? fila.soles / fila.volumen : 0;
 
 export const ReporteDiario = () => {
     const [date, setDate] = useState<string>(toLocaleOnlyDate(new Date()));
     const [isChecked, setIsChecked] = useState<boolean>(false);
 
-    const { data, error, isValidating, isLoading, mutate } = useSWR(
-        `${process.env.NEXT_PUBLIC_URL}/api-diario-${date}-${isChecked}`, 
-        () => fetcher(date, isChecked)
+    const { data, isValidating, isLoading, mutate } = useSWR(
+        `${process.env.NEXT_PUBLIC_URL}/api-diario-${date}`,
+        () => fetcher(date)
     );
-    // Cálculos de totales optimizados
-    const totals = useMemo(() => {
-        if (!Array.isArray(data)) return { sum_ventas: 0, sum_cantidad: 0, sum_total: 0 };
-        return data.reduce((acc, curr) => ({
-            sum_cantidad: acc.sum_cantidad + curr.cantidad,
-            sum_total: acc.sum_total + curr.total
-        }), { sum_cantidad: 0, sum_total: 0 });
-    }, [data]);
+
+    // Secciones del cierre: combustibles por tipo de movimiento + otros productos
+    const secciones = useMemo(() => {
+        const filas = data?.detalle ?? [];
+        const conteos = data?.conteos ?? [];
+        const combustibles = filas.filter(f => f.medida === 'GLL');
+        const otros = filas.filter(f => f.medida !== 'GLL');
+
+        // Comprobantes de combustible del tipo indicado
+        const ventasCombustible = (tipo: IReporteCierreDiarioDetalle['tipo']) =>
+            conteos.find(c => c.tipo === tipo && c.es_combustible === 1)?.ventas ?? 0;
+        // Un comprobante pertenece a un solo tipo, asi que sumar entre tipos no duplica
+        const ventasOtros = conteos
+            .filter(c => c.es_combustible === 0)
+            .reduce((acc, c) => acc + c.ventas, 0);
+
+        const resultado: ISeccion[] = [
+            construyeSeccion('Ventas', combustibles.filter(f => f.tipo === 'VENTA'), ventasCombustible('VENTA')),
+            construyeSeccion('Nota de despacho', combustibles.filter(f => f.tipo === 'DESPACHO'), ventasCombustible('DESPACHO')),
+            construyeSeccion('Serafin', combustibles.filter(f => f.tipo === 'SERAFIN'), ventasCombustible('SERAFIN')),
+        ];
+        if (isChecked) resultado.push(construyeSeccion('Otros productos', otros, ventasOtros, true));
+
+        return resultado.filter(seccion => seccion.filas.length > 0);
+    }, [data, isChecked]);
 
     const handleDateChange = (e: ChangeEvent<HTMLInputElement>) => setDate(e.target.value);
     const handleCheckChange = (e: ChangeEvent<HTMLInputElement>) => setIsChecked(e.target.checked);
 
     const exportToExcel = () => {
-        if (!data || data.length === 0) return;
-        const worksheet = XLSX.utils.json_to_sheet(data);
+        if (secciones.length === 0) return;
+        const rows: (string | number)[][] = [];
+        secciones.forEach((seccion, index) => {
+            if (index > 0) rows.push([]);
+            rows.push([seccion.titulo.toUpperCase()]);
+            rows.push([
+                'PRODUCTO',
+                seccion.porUnidad ? 'CANTIDAD' : 'VENTAS',
+                seccion.porUnidad ? 'PRECIO UNIT.' : 'VOLUMEN',
+                'SOLES'
+            ]);
+            seccion.filas.forEach(fila => {
+                rows.push([
+                    fila.producto,
+                    seccion.porUnidad ? Number(fila.volumen.toFixed(2)) : fila.ventas,
+                    seccion.porUnidad ? Number(precioUnitario(fila).toFixed(2)) : Number(fila.volumen.toFixed(2)),
+                    Number(fila.soles.toFixed(2))
+                ]);
+            });
+            rows.push([
+                'TOTAL',
+                seccion.porUnidad ? Number(seccion.volumen.toFixed(2)) : seccion.ventas,
+                seccion.porUnidad ? '' : Number(seccion.volumen.toFixed(2)),
+                Number(seccion.soles.toFixed(2))
+            ]);
+        });
+
+        const worksheet = XLSX.utils.aoa_to_sheet(rows);
+        worksheet['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Cierre Diario");
         XLSX.writeFile(workbook, `Cierre_Diario_${date}.xlsx`);
@@ -42,7 +120,7 @@ export const ReporteDiario = () => {
 
     useEffect(() => {
         mutate();
-    }, [date, isChecked]);
+    }, [date]);
 
     if (isLoading || isValidating) {
         return (
@@ -53,22 +131,22 @@ export const ReporteDiario = () => {
     }
 
     return (
-        <div className="col-span-2 bg-white rounded-lg shadow-md p-6">
+        <div className="col-span-2 bg-white rounded-lg shadow-md p-4">
             {/* Encabezado y Controles */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
                 <div>
-                    <h2 className="text-xl font-bold text-gray-800">Reporte de Cierre Diario</h2>
-                    <p className="text-sm text-gray-500">Resumen de ventas y galonaje</p>
+                    <h2 className="text-lg font-bold text-gray-800">Reporte de Cierre Diario</h2>
+                    <p className="text-xs text-gray-500">Resumen de ventas y galonaje</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
                     {/* Checkbox estilizado */}
                     <label className="relative inline-flex items-center cursor-pointer group">
-                        <input 
-                            type="checkbox" 
+                        <input
+                            type="checkbox"
                             className="sr-only peer"
-                            checked={isChecked} 
-                            onChange={handleCheckChange} 
+                            checked={isChecked}
+                            onChange={handleCheckChange}
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                         <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
@@ -76,7 +154,7 @@ export const ReporteDiario = () => {
                         </span>
                     </label>
 
-                    <button 
+                    <button
                         onClick={exportToExcel}
                         className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all text-sm font-semibold shadow-sm"
                     >
@@ -89,42 +167,69 @@ export const ReporteDiario = () => {
                         <input
                             type="date"
                             className="bg-transparent text-sm outline-none text-gray-700"
-                            value={date} 
-                            onChange={handleDateChange} 
+                            value={date}
+                            onChange={handleDateChange}
                         />
                     </div>
                 </div>
             </div>
 
-            {/* Tabla */}
-            <div className="overflow-x-auto border rounded-xl">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Producto</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cantidad</th>
-                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {data?.map((item: IReporteCierrePorDia) => (
-                            <tr key={item.codigo} className="hover:bg-blue-50/50 transition-colors">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.producto}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.cantidad.toFixed(3)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{currencyFormat(item.total)}</td>
-                            </tr>
+            {/* Tablas por sección */}
+            {secciones.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8 border rounded-xl">
+                    No hay movimientos registrados para la fecha seleccionada.
+                </p>
+            ) : (
+                <div className="overflow-x-auto border rounded-xl">
+                    <table className="min-w-full text-sm">
+                        {secciones.map(seccion => (
+                            <tbody key={seccion.titulo} className="divide-y divide-gray-100 border-b last:border-b-0">
+                                {/* Cada seccion trae su propio encabezado: Otros productos mide en
+                                    unidades y no en galones, asi que sus dos columnas del medio
+                                    significan otra cosa que las de combustible. */}
+                                <tr className="bg-gray-100/70">
+                                    <th scope="rowgroup" className="px-4 py-1.5 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                        {seccion.titulo}
+                                    </th>
+                                    <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                                        {seccion.porUnidad ? 'Cantidad' : 'Ventas'}
+                                    </th>
+                                    <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                                        {seccion.porUnidad ? 'Precio Unit.' : 'Volumen'}
+                                    </th>
+                                    <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                                        Soles
+                                    </th>
+                                </tr>
+                                {seccion.filas.map(fila => (
+                                    <tr key={`${fila.tipo}-${fila.codigo}-${fila.producto}`} className="hover:bg-blue-50/50 transition-colors">
+                                        <td className="px-4 py-1.5 whitespace-nowrap font-medium text-gray-900">{fila.producto}</td>
+                                        <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">
+                                            {seccion.porUnidad ? Number(fila.volumen.toFixed(2)) : fila.ventas}
+                                        </td>
+                                        <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">
+                                            {seccion.porUnidad ? currencyFormat(precioUnitario(fila)) : fila.volumen.toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-1.5 whitespace-nowrap text-right font-semibold text-gray-900">{currencyFormat(fila.soles)}</td>
+                                    </tr>
+                                ))}
+                                {/* Fila de Totales */}
+                                <tr className="bg-gray-50 font-bold border-t border-gray-300">
+                                    <td className="px-4 py-1.5 text-gray-900 uppercase">Total</td>
+                                    <td className="px-4 py-1.5 text-right text-gray-900">
+                                        {seccion.porUnidad ? Number(seccion.volumen.toFixed(2)) : seccion.ventas}
+                                    </td>
+                                    {/* Sumar precios unitarios no significa nada */}
+                                    <td className="px-4 py-1.5 text-right text-gray-900">
+                                        {seccion.porUnidad ? '—' : seccion.volumen.toFixed(2)}
+                                    </td>
+                                    <td className="px-4 py-1.5 text-right text-blue-700">{currencyFormat(seccion.soles)}</td>
+                                </tr>
+                            </tbody>
                         ))}
-                    </tbody>
-                    {/* Fila de Totales */}
-                    <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                        <tr>
-                            <td className="px-6 py-4 text-sm text-gray-900 uppercase">Total General</td>
-                            <td className="px-6 py-4 text-sm text-gray-900">{totals.sum_cantidad.toFixed(3)}</td>
-                            <td className="px-6 py-4 text-sm text-blue-700">{currencyFormat(totals.sum_total)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }
