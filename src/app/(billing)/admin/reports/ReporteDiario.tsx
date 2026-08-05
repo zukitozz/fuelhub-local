@@ -92,14 +92,14 @@ export const ReporteDiario = () => {
                 rows.push([
                     fila.producto,
                     fila.ventas,
-                    Number(fila.volumen.toFixed(2)),
+                    Number(fila.volumen.toFixed(3)),
                     Number(fila.soles.toFixed(2))
                 ]);
             });
             rows.push([
                 'TOTAL',
                 seccion.ventas,
-                Number(seccion.cantidad.toFixed(2)),
+                Number(seccion.cantidad.toFixed(3)),
                 Number(seccion.soles.toFixed(2))
             ]);
         });
@@ -199,7 +199,7 @@ export const ReporteDiario = () => {
                                     <tr key={`${fila.tipo}-${fila.codigo}-${fila.producto}`} className="hover:bg-blue-50/50 transition-colors">
                                         <td className="px-4 py-1.5 whitespace-nowrap font-medium text-gray-900">{fila.producto}</td>
                                         <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">{fila.ventas}</td>
-                                        <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">{fila.volumen.toFixed(2)}</td>
+                                        <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">{fila.volumen.toFixed(3)}</td>
                                         <td className="px-4 py-1.5 whitespace-nowrap text-right font-semibold text-gray-900">{currencyFormat(fila.soles)}</td>
                                     </tr>
                                 ))}
@@ -207,7 +207,7 @@ export const ReporteDiario = () => {
                                 <tr className="bg-gray-50 font-bold border-t border-gray-300">
                                     <td className="px-4 py-1.5 text-gray-900 uppercase">Total</td>
                                     <td className="px-4 py-1.5 text-right text-gray-900">{seccion.ventas}</td>
-                                    <td className="px-4 py-1.5 text-right text-gray-900">{seccion.cantidad.toFixed(2)}</td>
+                                    <td className="px-4 py-1.5 text-right text-gray-900">{seccion.cantidad.toFixed(3)}</td>
                                     <td className="px-4 py-1.5 text-right text-blue-700">{currencyFormat(seccion.soles)}</td>
                                 </tr>
                             </tbody>
