@@ -10,10 +10,12 @@ export interface IReporteCierreDiarioDetalle {
     soles: number;
 }
 
-// Comprobantes distintos de combustible por tipo de movimiento. Un comprobante puede
-// llevar varios productos, asi que el total de una seccion no es la suma de las filas.
+// Comprobantes distintos por tipo de movimiento, separando combustible de otros
+// productos. Un comprobante puede llevar varios productos, asi que el total de una
+// seccion no es la suma de las filas.
 export interface IReporteCierreDiarioConteo {
     tipo: TipoMovimientoCierreDiario;
+    es_combustible: number;
     ventas: number;
 }
 
