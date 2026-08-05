@@ -30,7 +30,8 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
                 inner join Items i on c.id = i.ComprobanteId
                 inner join Cierreturnos t on c.CierreturnoId = t.id
                 inner join Cierredias d on t.CierrediaId = d.id
-                where CAST(d.fecha AS DATE) = '${nextDayString}' and c.tipo_comprobante in ('01','03','50','51','52')
+                where CAST(d.fecha AS DATE) = '${nextDayString}' and i.medida = 'GLL'
+                and c.tipo_comprobante in ('01','03','50','51','52')
                 group by i.codigo_producto, i.descripcion,
                 CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END
             )
