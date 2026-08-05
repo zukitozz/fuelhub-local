@@ -1,10 +1,3 @@
-export interface IReporteCierrePorDia {
-    codigo: string;
-    producto: string;
-    cantidad: number;
-    total: number;
-}
-
 export type TipoMovimientoCierreDiario = 'VENTA' | 'DESPACHO' | 'SERAFIN';
 
 export interface IReporteCierreDiarioDetalle {
@@ -17,11 +10,10 @@ export interface IReporteCierreDiarioDetalle {
     soles: number;
 }
 
-// Comprobantes distintos por tipo de movimiento. Un comprobante puede llevar varios
-// productos, asi que el total de una seccion no es la suma de las filas.
+// Comprobantes distintos de combustible por tipo de movimiento. Un comprobante puede
+// llevar varios productos, asi que el total de una seccion no es la suma de las filas.
 export interface IReporteCierreDiarioConteo {
     tipo: TipoMovimientoCierreDiario;
-    es_combustible: number;
     ventas: number;
 }
 
