@@ -19,6 +19,8 @@ interface ISeccion {
     ventas: number;
     cantidad: number;
     soles: number;
+    // Nota de despacho y Serafin no son cobro, asi que no entran al total general
+    sumaAlTotal: boolean;
 }
 
 // `ventas` llega aparte porque es un conteo de comprobantes distintos: un comprobante con
@@ -26,11 +28,13 @@ interface ISeccion {
 const construyeSeccion = (
     titulo: string,
     filas: IReporteCierreDiarioDetalle[],
-    ventas: number
+    ventas: number,
+    sumaAlTotal = true
 ): ISeccion => ({
     titulo,
     filas,
     ventas,
+    sumaAlTotal,
     ...filas.reduce((acc, curr) => ({
         cantidad: acc.cantidad + curr.volumen,
         soles: acc.soles + curr.soles,
@@ -63,18 +67,19 @@ export const ReporteDiario = () => {
 
         const resultado: ISeccion[] = [
             construyeSeccion('Ventas', combustibles.filter(f => f.tipo === 'VENTA'), ventasCombustible('VENTA')),
-            construyeSeccion('Nota de despacho', combustibles.filter(f => f.tipo === 'DESPACHO'), ventasCombustible('DESPACHO')),
-            construyeSeccion('Serafin', combustibles.filter(f => f.tipo === 'SERAFIN'), ventasCombustible('SERAFIN')),
+            construyeSeccion('Nota de despacho', combustibles.filter(f => f.tipo === 'DESPACHO'), ventasCombustible('DESPACHO'), false),
+            construyeSeccion('Serafin', combustibles.filter(f => f.tipo === 'SERAFIN'), ventasCombustible('SERAFIN'), false),
         ];
         if (isChecked) resultado.push(construyeSeccion('Otros productos', otros, ventasOtros));
 
         return resultado.filter(seccion => seccion.filas.length > 0);
     }, [data, isChecked]);
 
-    // Solo se suman los soles: el volumen mezcla galones con unidades y las ventas
-    // contarian dos veces un comprobante que llevo combustible y otros productos.
+    // Solo suma los soles de lo efectivamente cobrado: nota de despacho y serafin quedan
+    // fuera. El volumen mezclaria galones con unidades y las ventas contarian dos veces un
+    // comprobante que llevo combustible y otros productos, asi que esas columnas van vacias.
     const totalGeneral = useMemo(
-        () => secciones.reduce((acc, seccion) => acc + seccion.soles, 0),
+        () => secciones.reduce((acc, seccion) => acc + (seccion.sumaAlTotal ? seccion.soles : 0), 0),
         [secciones]
     );
 
