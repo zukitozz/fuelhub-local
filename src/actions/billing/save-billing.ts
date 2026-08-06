@@ -21,13 +21,15 @@ export async function saveBilling(comprobante: IComprobanteAdmin): Promise<IComp
         }         
     } catch (error) {
         console.error("Error saving comprobante:");
-        console.error(JSON.stringify(error));
+        console.error(error);
+        // JSON.stringify de un Error devuelve {}, se perderia el motivo del rechazo
+        const detalle = error instanceof Error ? error.message : JSON.stringify(error);
         return {
-            message: `${message} | ${JSON.stringify(error)}`,
+            message: `${message} | ${detalle}`,
             status: false,
             bill: null
-        }            
-    }   
+        }
+    }
 }
 interface IGenericResponse {
     message: string;

@@ -63,6 +63,28 @@ import { toLocaleStorage } from './formats';
             await transaction.begin();
 
             try {
+                    //Validar que el documento afectado no tenga ya una nota de credito vigente.
+                    //Va dentro de la transaccion y antes de pedir correlativo para no consumir uno.
+                    //Una NC con errors se considera no vigente: debe poder reemitirse.
+                    if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_CREDITO) {
+                        //Sin documento afectado no se puede comprobar nada: se rechaza en vez
+                        //de dejar pasar una NC que ademas quedaria huerfana
+                        if (!numeracion_documento_afectado) {
+                            throw new Error('La nota de crédito no indica a qué comprobante afecta');
+                        }
+                        const sqlNotaCreditoRequest = new sql.Request(transaction);
+                        sqlNotaCreditoRequest.input('numeracion_documento_afectado', sql.NVarChar, numeracion_documento_afectado);
+                        const notaPrevia = await sqlNotaCreditoRequest.query(`
+                            SELECT TOP 1 numeracion_comprobante FROM Comprobantes
+                            WHERE tipo_comprobante = '07'
+                            AND numeracion_documento_afectado = @numeracion_documento_afectado
+                            AND ISNULL(errors, '') = ''
+                        `);
+                        const numeracionPrevia = notaPrevia.recordset[0]?.numeracion_comprobante;
+                        if (numeracionPrevia) {
+                            throw new Error(`El comprobante ${numeracion_documento_afectado} ya tiene la nota de crédito ${numeracionPrevia}`);
+                        }
+                    }
                     //Obtiene prefijo
                     let prefijo: string = '';
                     if (tipo_comprobante === '07' && tipo_documento_afectado === '01') {
@@ -147,7 +169,8 @@ import { toLocaleStorage } from './formats';
                     sqlRequest.input('producto_precio', sql.Float, producto_precio);
                     sqlRequest.input('ruc', sql.NVarChar, ruc);
                     sqlRequest.input('enviado', sql.Bit, enviado);
-                    sqlRequest.input('estado_nota_despacho', sql.NVarChar, estado_nota_despacho);
+                    //La columna es bit: enlazarla como NVarChar rompe si el valor no es null
+                    sqlRequest.input('estado_nota_despacho', sql.Bit, estado_nota_despacho);
                     sqlRequest.input('comprobante_nota_despacho', sql.NVarChar, comprobante_nota_despacho);
                     sqlRequest.input('fecha_facturado_nota_despacho', sql.NVarChar, fecha_facturado_nota_despacho);
                     sqlRequest.input('ReceptorId', sql.Int, id_receptor);
