@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useState, useMemo } from "react";
+import { ChangeEvent, useState, useMemo } from "react";
 import useSWR from 'swr';
 import * as XLSX from 'xlsx';
 import { IoDownloadOutline, IoCalendarOutline } from "react-icons/io5";
@@ -43,9 +43,9 @@ const construyeSeccion = (
 
 export const ReporteDiario = () => {
     const [date, setDate] = useState<string>(toLocaleOnlyDate(new Date()));
-    const [isChecked, setIsChecked] = useState<boolean>(false);
 
-    const { data, isValidating, isLoading, mutate } = useSWR(
+    // La clave lleva la fecha, asi que SWR revalida solo al cambiarla
+    const { data, isValidating, isLoading } = useSWR(
         `${process.env.NEXT_PUBLIC_URL}/api-diario-${date}`,
         () => fetcher(date)
     );
@@ -69,11 +69,11 @@ export const ReporteDiario = () => {
             construyeSeccion('Ventas', combustibles.filter(f => f.tipo === 'VENTA'), ventasCombustible('VENTA')),
             construyeSeccion('Nota de despacho', combustibles.filter(f => f.tipo === 'DESPACHO'), ventasCombustible('DESPACHO'), false),
             construyeSeccion('Serafin', combustibles.filter(f => f.tipo === 'SERAFIN'), ventasCombustible('SERAFIN'), false),
+            construyeSeccion('Otros productos', otros, ventasOtros),
         ];
-        if (isChecked) resultado.push(construyeSeccion('Otros productos', otros, ventasOtros));
 
         return resultado.filter(seccion => seccion.filas.length > 0);
-    }, [data, isChecked]);
+    }, [data]);
 
     // Solo suma los soles de lo efectivamente cobrado: nota de despacho y serafin quedan
     // fuera. El volumen mezclaria galones con unidades y las ventas contarian dos veces un
@@ -84,7 +84,6 @@ export const ReporteDiario = () => {
     );
 
     const handleDateChange = (e: ChangeEvent<HTMLInputElement>) => setDate(e.target.value);
-    const handleCheckChange = (e: ChangeEvent<HTMLInputElement>) => setIsChecked(e.target.checked);
 
     const exportToExcel = () => {
         if (secciones.length === 0) return;
@@ -118,10 +117,6 @@ export const ReporteDiario = () => {
         XLSX.writeFile(workbook, `Cierre_Diario_${date}.xlsx`);
     };
 
-    useEffect(() => {
-        mutate();
-    }, [date]);
-
     if (isLoading || isValidating) {
         return (
             <div className="flex justify-center items-center py-10">
@@ -140,28 +135,6 @@ export const ReporteDiario = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4">
-                    {/* Checkbox estilizado */}
-                    <label className="relative inline-flex items-center cursor-pointer group">
-                        <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={isChecked}
-                            onChange={handleCheckChange}
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
-                            Incluir productos
-                        </span>
-                    </label>
-
-                    <button
-                        onClick={exportToExcel}
-                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all text-sm font-semibold shadow-sm"
-                    >
-                        <IoDownloadOutline size={20} />
-                        Excel
-                    </button>
-
                     <div className="flex items-center border rounded-lg px-3 py-1 bg-gray-50 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
                         <IoCalendarOutline className="text-gray-400 mr-2" size={18} />
                         <input
@@ -171,6 +144,14 @@ export const ReporteDiario = () => {
                             onChange={handleDateChange}
                         />
                     </div>
+
+                    <button
+                        onClick={exportToExcel}
+                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all text-sm font-semibold shadow-sm"
+                    >
+                        <IoDownloadOutline size={20} />
+                        Excel
+                    </button>
                 </div>
             </div>
 
