@@ -271,16 +271,57 @@ import { toLocaleStorage } from './formats';
                 const isla = session?.user.isla || "";
                 const fecha_inicio = session?.user.fecha_registro || "";
                 await transaction.begin();
+
+                //Los totales llegan del navegador, calculados al abrir la pantalla. Si entraron
+                //ventas despues, quedarian fuera del cierre aunque el barrido de mas abajo si las
+                //marca. Se recalcula aqui con el MISMO criterio que usa ese barrido
+                //(CierreturnoId IS NULL) para que ambos correspondan al mismo instante.
+                const reqProductos = new sql.Request(transaction);
+                const productosActuales = (await reqProductos.query(`
+                    select i.descripcion as producto, i.medida as medida, i.codigo_producto as codigo,
+                    sum(CASE when tipo_comprobante in ('01','03','52') then i.cantidad_venta else 0 END) as total_cantidad,
+                    sum(CASE when tipo_comprobante = '50' then i.cantidad_venta else 0 END) as despacho_cantidad,
+                    sum(CASE when tipo_comprobante = '51' then i.cantidad_venta else 0 END) as calibracion_cantidad,
+                    sum(CASE when tipo_comprobante in ('01','03','52') then i.precio_venta else 0 END) as total_soles,
+                    sum(CASE when tipo_comprobante = '50' then i.precio_venta else 0 END) as despacho_soles,
+                    sum(CASE when tipo_comprobante = '51' then i.precio_venta else 0 END) as calibracion_soles
+                    from Comprobantes c
+                    inner join Items i on c.id = i.ComprobanteId
+                    where CierreturnoId is null and UsuarioId = ${usuarioId}
+                    group by i.descripcion, i.medida, i.codigo_producto;
+                `)).recordset as ICierreTurnoDetalle[];
+
+                const reqSoles = new sql.Request(transaction);
+                const solesActuales = (await reqSoles.query(`
+                    select ISNULL(sum(pago_efectivo),0) as efectivo,
+                           ISNULL(sum(pago_tarjeta),0) as tarjeta,
+                           ISNULL(sum(pago_yape),0) as yape
+                    from Comprobantes
+                    where CierreturnoId is null and tipo_comprobante in ('01','03','52') and UsuarioId = ${usuarioId};
+                `)).recordset[0] as ICierreTurnoSoles;
+
+                const totalActual = solesActuales.efectivo + solesActuales.tarjeta + solesActuales.yape;
+
+                //No se guarda en silencio una cifra distinta a la que vio el despachador: el
+                //voucher saldria con un monto que nunca tuvo en pantalla.
+                if (Math.abs(totalActual - total) > 0.01) {
+                    throw new Error(
+                        `Ingresaron ventas nuevas mientras la pantalla estaba abierta. ` +
+                        `La pantalla muestra S/ ${total.toFixed(2)} y el sistema tiene S/ ${totalActual.toFixed(2)}. ` +
+                        `Actualiza la pantalla y vuelve a cerrar el turno.`
+                    );
+                }
+
                 //Insertar cierre
                 const sqlRequest = new sql.Request(transaction);
-                sqlRequest.input('total', sql.Float, total);
+                sqlRequest.input('total', sql.Float, totalActual);
                 sqlRequest.input('fecha', sql.NVarChar, toLocaleStorage(new Date()));
                 sqlRequest.input('fecha_inicio', sql.NVarChar, fecha_inicio);
                 sqlRequest.input('turno', sql.NVarChar, turno);
                 sqlRequest.input('isla', sql.NVarChar, isla);
-                sqlRequest.input('efectivo', sql.Float, soles.efectivo);
-                sqlRequest.input('tarjeta', sql.Float, soles.tarjeta);
-                sqlRequest.input('yape', sql.Float, soles.yape);
+                sqlRequest.input('efectivo', sql.Float, solesActuales.efectivo);
+                sqlRequest.input('tarjeta', sql.Float, solesActuales.tarjeta);
+                sqlRequest.input('yape', sql.Float, solesActuales.yape);
                 sqlRequest.input('UsuarioId', sql.Int, usuarioId);
                 
                 
@@ -294,7 +335,7 @@ import { toLocaleStorage } from './formats';
                 const cierreturnoId = result.recordset[0]?.id;
 
                 //Insertar detalle cierre
-                const products_insert = productos.map(n => `(${cierreturnoId},${Object.values(n).map(v => `'${v}'`).join(", ")})`).join(', ')
+                const products_insert = productosActuales.map(n => `(${cierreturnoId},${Object.values(n).map(v => `'${v}'`).join(", ")})`).join(', ')
 
                 
 
