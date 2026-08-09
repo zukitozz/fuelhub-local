@@ -58,6 +58,9 @@ export const CierreVentas = () => {
             const { message, status } = await saveCierreTurno(session, stats.totTipoPago, data.soles, data.productos)
             if(status){
                 notify({message})
+                //signOut redirige al login y se lleva la notificacion por delante: se le da
+                //tiempo al despachador de leer la confirmacion antes de salir
+                await new Promise(resolve => setTimeout(resolve, 2500));
                 //Solo se cierra sesion si el turno realmente se cerro: ante un rechazo el
                 //despachador debe poder leer el error, refrescar y volver a intentarlo
                 await logout();
