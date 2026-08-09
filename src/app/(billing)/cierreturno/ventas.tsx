@@ -15,8 +15,11 @@ export const CierreVentas = () => {
 
     const usuarioId = session?.user?.id || "0";
     
-    const { data, isLoading, error } = useSWR(`${process.env.NEXT_PUBLIC_URL}/api/cierre/${usuarioId}`, 
-        () => obtieneCierreTurno(usuarioId)
+    // Sin refresco la pantalla puede quedar horas mostrando totales viejos si el
+    // despachador la deja abierta y sigue vendiendo
+    const { data, isLoading, error } = useSWR(`${process.env.NEXT_PUBLIC_URL}/api/cierre/${usuarioId}`,
+        () => obtieneCierreTurno(usuarioId),
+        { refreshInterval: 2000 }
     );
 
     // Cálculos memorizados
