@@ -56,8 +56,11 @@ export const CierreVentas = () => {
         setIsProcessing(true);
         try{
             const { message, status } = await saveCierreTurno(session, stats.totTipoPago, data.soles, data.productos)
-            if(status){          
+            if(status){
                 notify({message})
+                //Solo se cierra sesion si el turno realmente se cerro: ante un rechazo el
+                //despachador debe poder leer el error, refrescar y volver a intentarlo
+                await logout();
             }else{
                 notify({message, type: 'error'})
             }
@@ -66,7 +69,6 @@ export const CierreVentas = () => {
             notify({ message: msg, type: 'error' });
         } finally {
             setIsProcessing(false);
-            await logout();
         }
     };
 
