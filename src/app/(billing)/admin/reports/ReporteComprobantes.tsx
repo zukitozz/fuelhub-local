@@ -56,7 +56,10 @@ export const ReporteComprobantes = () => {
 
     const exportToExcel = () => {
         if (!data || data.length === 0) return;
-        const worksheet = XLSX.utils.json_to_sheet(data);
+        //La url solo sirve para el boton PDF de la pantalla: en el Excel es una columna
+        //larga que no aporta nada
+        const filas = data.map(({ url, ...resto }) => resto);
+        const worksheet = XLSX.utils.json_to_sheet(filas);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Comprobantes");
         XLSX.writeFile(workbook, `Reporte_Comprobantes_${fechaInicio}.xlsx`);

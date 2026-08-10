@@ -148,10 +148,18 @@ export async function obtieneReporteComprobantes({ boletas, factura, notasCredit
     } else {
         where += ` and 1=0`;
     }
+    //dec_combustible solo se llena en ventas de combustible, por eso los productos se
+    //arman desde Items. Se usa FOR XML PATH y no STRING_AGG porque el servidor es
+    //SQL Server 2012 y esa funcion recien existe desde la 2017.
     const query = `
-        select TOP 100 c.id as id, numeracion_comprobante as comprobante, c.fecha_hora as fecha, fecha_abastecimiento as fechahora, r.numero_documento, r.razon_social as receptor, c.placa, c.dec_combustible, c.total  as total, u.nombre as usuario, c.url  
-        from Comprobantes c  
-        inner join Receptores r on c.ReceptorId = r.id 
+        select TOP 100 c.id as id, numeracion_comprobante as comprobante, c.fecha_hora as fecha, fecha_abastecimiento as fechahora, r.numero_documento, r.razon_social as receptor, c.placa, c.dec_combustible,
+        ISNULL(STUFF((
+            select ', ' + i.descripcion
+            from Items i where i.ComprobanteId = c.id
+            for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
+        c.total  as total, u.nombre as usuario, c.url
+        from Comprobantes c
+        inner join Receptores r on c.ReceptorId = r.id
         inner join Usuarios u on c.UsuarioId = u.id
         ${where} order by c.id desc
         `;
