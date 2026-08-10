@@ -72,4 +72,6 @@ export interface IReporteComprobantes {
     usuario: string;
     url: string;
     total: number;
+    // Productos del comprobante, separados por coma cuando lleva mas de uno
+    productos: string;
 }
