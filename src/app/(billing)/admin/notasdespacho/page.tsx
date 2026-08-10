@@ -1,6 +1,6 @@
 "use client"
 import React, { useState } from 'react';
-import { currencyFormat } from '@/utils';
+import { currencyFormat, toLocaleOnlyDate } from '@/utils';
 import { obtieneNotasDespacho } from '@/actions/billing/get-billing';
 import { NotasDespachoTable } from './table';
 import useSWR from 'swr';
@@ -19,6 +19,9 @@ export default function ConsolidacionDespachos () {
   
   const [selectedNotas, setSelectedNotas] = useState<number[]>([]);
   const [rucFilter, setRucFilter] = useState('');
+  //Vacias por defecto: sin fechas se listan todas las notas pendientes, como antes
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [showError, setShowError] = useState(false);  
 
@@ -33,8 +36,19 @@ export default function ConsolidacionDespachos () {
       return (<div className="animate-spin rounded-full h-8 w-8 justify-center border-gray-900 border-b-2 align-middle"></div>);
   }
 
-  const notasSeleccionadasRuc = data.filter(n => n.Receptor.numero_documento.includes(rucFilter));
-  const notasSeleccionadasData = notasSeleccionadasRuc?.filter(n => selectedNotas.includes(n.id||0)) || [];
+  //Se compara solo la parte de la fecha, en el mismo formato que devuelven los inputs
+  const dentroDelRango = (fecha: string|Date) => {
+    if (!fechaInicio && !fechaFin) return true;
+    const dia = toLocaleOnlyDate(fecha);
+    if (fechaInicio && dia < fechaInicio) return false;
+    if (fechaFin && dia > fechaFin) return false;
+    return true;
+  };
+
+  const notasFiltradas = data.filter(n =>
+    n.Receptor.numero_documento.includes(rucFilter) && dentroDelRango(n.fecha_hora)
+  );
+  const notasSeleccionadasData = notasFiltradas?.filter(n => selectedNotas.includes(n.id||0)) || [];
   const total = notasSeleccionadasData?.reduce((acc, curr) => acc + curr.total, 0) || 0;
   const totalGravadas = notasSeleccionadasData?.reduce((acc, curr) => acc + curr.gravadas, 0) || 0;
   const igvConsolidado = Number((total - totalGravadas).toFixed(2)); // O el cálculo inverso según guardes en BD
@@ -86,7 +100,10 @@ export default function ConsolidacionDespachos () {
       {/* CUERPO PRINCIPAL EN DOS COLUMNAS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* TABLA DE SELECCIÓN (Ocupa 2 columnas) */}
-        <NotasDespachoTable comprobantes={notasSeleccionadasRuc} handleSelectNota={handleSelectNota} selectedNotas={selectedNotas} rucFilter={rucFilter} setRucFilter={setRucFilter} />
+        <NotasDespachoTable comprobantes={notasFiltradas} handleSelectNota={handleSelectNota} selectedNotas={selectedNotas}
+          rucFilter={rucFilter} setRucFilter={setRucFilter}
+          fechaInicio={fechaInicio} setFechaInicio={setFechaInicio}
+          fechaFin={fechaFin} setFechaFin={setFechaFin} />
 
         {/* PANEL DE ACCIÓN DE FACTURACIÓN (Ocupa 1 columna) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 h-fit sticky top-6">
