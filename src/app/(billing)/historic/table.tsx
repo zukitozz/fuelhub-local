@@ -71,34 +71,39 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
         return (
             historicos?.length === 0 ? (
                 <tr>
-                    <td colSpan={10} className="text-center py-6 text-gray-500 text-sm">
+                    <td colSpan={11} className="text-center py-6 text-gray-500 text-sm">
                         No se encontraron registros.
                     </td>
                 </tr>
             ) : (
                 data?.historicos?.map((item : IComprobanteHistorico) => (
                     <tr key={`${item.id}-${item.numeracion_comprobante}`} className="bg-white border-b transition duration-300 ease-in-out hover:bg-gray-100">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{toLocaleShow(item.fecha_hora)}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 py-4 truncate" title={item.Receptor.razon_social}>{item.Receptor.razon_social}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 py-4 whitespace-nowrap">{item.numeracion_comprobante}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.total}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.isla}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.turno}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.usuario}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">
+                        <td className="px-3 py-4 truncate text-sm font-medium text-gray-900">{toLocaleShow(item.fecha_hora)}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate" title={item.Receptor.razon_social}>{item.Receptor.razon_social}</td>
+                        {/* Un comprobante puede llevar varios productos, separados por coma */}
+                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate"
+                            title={item.items?.map(i => i.descripcion).join(', ')}>
+                            {item.items?.map(i => i.descripcion).join(', ')}
+                        </td>
+                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate">{item.numeracion_comprobante}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.total}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.isla}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.turno}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.usuario}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">
                             {item.url && item.url != 'null' && (
-                                <Link href={item.url||"#"} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">PDF</Link>
+                                <Link href={item.url||"#"} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded">PDF</Link>
                             )}
                         </td>                      
-                        <td className="text-sm text-gray-900 font-light px-6 ">
+                        <td className="text-sm text-gray-900 font-light px-3 ">
                             {item.errors && (
-                                <Link href={"#"} className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">ERROR</Link>
+                                <Link href={"#"} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1.5 px-2 rounded">ERROR</Link>
                             )}
                             {item.url && item.url != 'null' && !item.numeracion_documento_afectado && (
-                                <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ml-1">N.Credito</Link>
+                                <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-2 rounded ml-1">N.Credito</Link>
                             )}
                         </td>                                        
-                        <td className="text-sm text-gray-900 font-light px-6 ">
+                        <td className="text-sm text-gray-900 font-light px-3 ">
                             <PrintButton id={item.id || 0} session={session} />
                         </td>                    
                     </tr>
@@ -131,39 +136,46 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
             />                
         </div>
 
-        <div className="mb-10 w-full overflow-x-auto min-h-[200px] relative">
-            <table className="w-full min-w-[1360px] table-fixed">
+        {/* Sin overflow-x-auto: la tabla usa porcentajes y siempre entra, y el redondeo
+            a pixeles enteros de las columnas bastaba para disparar la barra de scroll */}
+        <div className="mb-10 w-full min-h-[200px] relative">
+            {/* Sin min-w: table-fixed reparte el ancho disponible y la tabla entra sin scroll */}
+            <table className="w-full table-fixed">
+                {/* Porcentajes que suman 100: con table-fixed la tabla nunca puede
+                    exceder el ancho disponible, asi que no aparece scroll horizontal */}
                 <colgroup>
-                    <col className="w-[200px]" />  {/* Fecha */}
-                    <col />  {/* Cliente (sin ancho: absorbe el espacio restante) */}
-                    <col className="w-[130px]" />  {/* Comprobante */}
-                    <col className="w-[90px]" />   {/* Total */}
-                    <col className="w-[90px]" />   {/* Isla */}
-                    <col className="w-[90px]" />   {/* Turno */}
-                    <col className="w-[100px]" />  {/* Usuario */}
-                    <col className="w-[80px]" />   {/* PDF */}
-                    <col className="w-[110px]" />  {/* SUNAT */}
-                    <col className="w-[150px]" />  {/* Acciones */}
+                    <col className="w-[12%]" />  {/* Fecha */}
+                    <col className="w-[16%]" />  {/* Cliente */}
+                    <col className="w-[13%]" />  {/* Producto */}
+                    <col className="w-[10%]" />  {/* Comprobante */}
+                    <col className="w-[6%]" />   {/* Total */}
+                    <col className="w-[7%]" />   {/* Isla */}
+                    <col className="w-[6%]" />   {/* Turno */}
+                    <col className="w-[10%]" />  {/* Usuario */}
+                    <col className="w-[6%]" />   {/* PDF */}
+                    <col className="w-[9%]" />   {/* SUNAT */}
+                    <col className="w-[5%]" />   {/* Acciones */}
                 </colgroup>
                 <thead className="bg-gray-200 border-b">
                     <tr>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Fecha</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Cliente</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Comprobante</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Total</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Isla</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Turno</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Usuario</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">PDF</th>
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">SUNAT</th> 
-                        <th scope="col" className="text-sm font-medium text-gray-900 px-6 py-4 text-left">Acciones</th>                                                                                                            
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Fecha</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Cliente</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Producto</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Comprobante</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Total</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Isla</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Turno</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Usuario</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">PDF</th>
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">SUNAT</th> 
+                        <th scope="col" className="text-sm font-medium text-gray-900 px-3 py-4 text-left">Acciones</th>                                                                                                            
                     </tr>
                 </thead>
                 <tbody>
                     {uninitialized ? (
                         /* Spinner embebido dentro de las filas para no romper el layout */
                         <tr>
-                            <td colSpan={10} className="text-center py-10">
+                            <td colSpan={11} className="text-center py-10">
                                 <div className="animate-spin rounded-full h-8 w-8 inline-block border-gray-900 border-b-2"></div>
                             </td>
                         </tr>
@@ -173,7 +185,7 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                 {data?.historicos && (
                     <tfoot className="bg-gray-50">
                         <tr>
-                            <td colSpan={10} className="px-6 py-3">
+                            <td colSpan={11} className="px-3 py-3">
                                 <div className="flex items-center justify-center space-x-2">
                                     <button disabled={currentPage === 1} onClick={() => paginate(currentPage - 1)} className="px-3 py-1 rounded border disabled:opacity-30">&lt;</button>
                                     {visiblePages.map((page, index) => (
