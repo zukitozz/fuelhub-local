@@ -39,5 +39,7 @@ export const Constants = {
     AMBITO_PRODUCTOS: {
         ISLA: 'VENTA_ISLA',
         ADMINISTRADOR: 'VENTA_TOTAL'
-    }
+    },
+    // false = proveedor alterno: el PDF se genera y se guarda en Comprobantes.pdf_bytes en vez de usar el PDF hosteado por MiFact.
+    PROVEEDOR_MIFACT: process.env.NEXT_PUBLIC_PROVEEDOR_MIFACT !== 'false'
 }
