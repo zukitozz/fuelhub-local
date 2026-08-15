@@ -1,5 +1,6 @@
 import { obtieneComprobantePDF } from '@/actions';
-import { currencyFormat, toLocaleOnlyDate, toLocaleShow } from '@/utils';
+import { currencyFormat, toLocaleOnlyDate, toLocaleShow, Constants } from '@/utils';
+import { getComprobantePdfBytes, saveComprobantePdfBytes } from '@/utils/db';
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
 import QRCode from 'qrcode';
@@ -12,8 +13,24 @@ export async function GET(
 ) {
   try {
     const { id } = params;
+    const comprobanteId = Number.parseInt(id);
 
-    const comprobante = await obtieneComprobantePDF(Number.parseInt(id));
+    // Proveedor alterno: si ya se generó el PDF antes, se sirve el mismo guardado
+    // en vez de regenerarlo (evita que un comprobante legal cambie de contenido con el tiempo).
+    if (!Constants.PROVEEDOR_MIFACT) {
+      const storedPdf = await getComprobantePdfBytes(comprobanteId);
+      if (storedPdf) {
+        return new NextResponse(Buffer.from(storedPdf), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="comprobante-${comprobanteId}.pdf"`,
+          },
+        });
+      }
+    }
+
+    const comprobante = await obtieneComprobantePDF(comprobanteId);
 
     const qrText = `${process.env.NEXT_PUBLIC_RUC_EMISOR || ''}|${comprobante.TipoComprobante}|${comprobante.NumeracionComprobante}|${comprobante.TotalIgv}|${comprobante.TotalVenta}|${toLocaleOnlyDate(comprobante.FechaEmision)}|${comprobante.ReceptorRuc || '00000000'}`;
 
@@ -351,6 +368,15 @@ export async function GET(
     });
 
     await browser.close();
+
+    if (!Constants.PROVEEDOR_MIFACT) {
+      try {
+        await saveComprobantePdfBytes(comprobanteId, Buffer.from(pdfBuffer));
+      } catch (saveError) {
+        // No se debe romper la descarga del PDF si falla el guardado del histórico
+        console.error("Error guardando pdf_bytes del comprobante:", saveError);
+      }
+    }
 
     // ==========================================
     // 4. RETORNAR EL ARCHIVO PDF AL NAVEGADOR

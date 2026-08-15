@@ -93,6 +93,8 @@ export interface IComprobanteHistorico extends IComprobanteAdmin {
     turno: string;
     isla: string;
     usuario: string;
+    // Indicador (0/1) de si el comprobante tiene el PDF guardado localmente, no el binario en si.
+    pdf_bytes?: number;
 }
 
 export interface IComprobantePDF {

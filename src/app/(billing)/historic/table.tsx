@@ -6,8 +6,10 @@ import Link from 'next/link';
 import { useSession } from "next-auth/react";
 
 import { ChangeEvent, SetStateAction, useEffect, useState } from 'react';
-import { toLocaleOnlyDate, toLocaleShow } from '@/utils';
+import { toLocaleOnlyDate, toLocaleShow, Constants } from '@/utils';
 import PrintButton from '@/components/ui/print/Printbutton';
+
+const isMifactProvider = Constants.PROVEEDOR_MIFACT;
 
 interface TableProps {
   page: number;
@@ -78,29 +80,28 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
             ) : (
                 data?.historicos?.map((item : IComprobanteHistorico) => (
                     <tr key={`${item.id}-${item.numeracion_comprobante}`} className="bg-white border-b transition duration-300 ease-in-out hover:bg-gray-100">
-                        <td className="px-3 py-4 truncate text-sm font-medium text-gray-900">{toLocaleShow(item.fecha_hora)}</td>
-                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate" title={item.Receptor.razon_social}>{item.Receptor.razon_social}</td>
-                        {/* Un comprobante puede llevar varios productos, separados por coma */}
-                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate"
-                            title={item.items?.map(i => i.descripcion).join(', ')}>
-                            {item.items?.map(i => i.descripcion).join(', ')}
-                        </td>
-                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate">{item.numeracion_comprobante}</td>
-                        <td className="text-sm text-gray-900 font-light px-3 ">{item.total}</td>
-                        <td className="text-sm text-gray-900 font-light px-3 ">{item.isla}</td>
-                        <td className="text-sm text-gray-900 font-light px-3 ">{item.turno}</td>
-                        <td className="text-sm text-gray-900 font-light px-3 ">{item.usuario}</td>
-                        <td className="text-sm text-gray-900 font-light px-3 ">
-                            {item.url && item.url != 'null' && (
-                                <Link href={item.url||"#"} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded">PDF</Link>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{toLocaleShow(item.fecha_hora)}</td>
+                        <td className="text-sm text-gray-900 font-light px-6 py-4 truncate" title={item.Receptor.razon_social}>{item.Receptor.razon_social}</td>
+                        <td className="text-sm text-gray-900 font-light px-6 py-4 whitespace-nowrap">{item.numeracion_comprobante}</td>
+                        <td className="text-sm text-gray-900 font-light px-6 ">{item.total}</td>
+                        <td className="text-sm text-gray-900 font-light px-6 ">{item.isla}</td>
+                        <td className="text-sm text-gray-900 font-light px-6 ">{item.turno}</td>
+                        <td className="text-sm text-gray-900 font-light px-6 ">{item.usuario}</td>
+                        <td className="text-sm text-gray-900 font-light px-6 ">
+                            {isMifactProvider ? (
+                                item.url && item.url != 'null' && (
+                                    <Link href={item.url||"#"} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">PDF</Link>
+                                )
+                            ) : (
+                                <Link href={`/api/comprobante/${item.id}`} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">PDF</Link>
                             )}
-                        </td>                      
-                        <td className="text-sm text-gray-900 font-light px-3 ">
+                        </td>
+                        <td className="text-sm text-gray-900 font-light px-6 ">
                             {item.errors && (
                                 <Link href={"#"} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1.5 px-2 rounded">ERROR</Link>
                             )}
-                            {item.url && item.url != 'null' && !item.numeracion_documento_afectado && (
-                                <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-2 rounded ml-1">N.Credito</Link>
+                            {(isMifactProvider ? (item.url && item.url != 'null') : !!item.pdf_bytes) && !item.numeracion_documento_afectado && (
+                                <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ml-1">N.Credito</Link>
                             )}
                         </td>                                        
                         <td className="text-sm text-gray-900 font-light px-3 ">

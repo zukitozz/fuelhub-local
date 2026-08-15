@@ -259,6 +259,25 @@ import { toLocaleStorage } from './formats';
         }
     }
 
+    export async function getComprobantePdfBytes(id: number): Promise<Buffer | null> {
+        config.database = process.env.DB_DATABASE_AUXILIAR || "";
+        const pool = await sql.connect(config);
+        const request = pool.request();
+        request.input('id', sql.Int, id);
+        const result = await request.query(`SELECT pdf_bytes FROM Comprobantes WHERE id = @id`);
+        const bytes = result.recordset[0]?.pdf_bytes;
+        return bytes ? Buffer.from(bytes) : null;
+    }
+
+    export async function saveComprobantePdfBytes(id: number, pdfBytes: Buffer): Promise<void> {
+        config.database = process.env.DB_DATABASE_AUXILIAR || "";
+        const pool = await sql.connect(config);
+        const request = pool.request();
+        request.input('id', sql.Int, id);
+        request.input('pdf_bytes', sql.VarBinary(sql.MAX), pdfBytes);
+        await request.query(`UPDATE Comprobantes SET pdf_bytes = @pdf_bytes WHERE id = @id`);
+    }
+
     export async function saveCierreTurnoTransaction(session: Session|null, total: number, soles: ICierreTurnoSoles, productos: ICierreTurnoDetalle[]): Promise<ICierreTurnoResponse>{
         config.database = process.env.DB_DATABASE_AUXILIAR||"";
         const pool: ConnectionPool = await sql.connect(config);
