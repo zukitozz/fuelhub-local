@@ -57,7 +57,7 @@ export default function ConsolidacionDespachos () {
     // VALIDACIÓN: Comprobar que exista al menos una nota seleccionada con datos de cliente válidos
     const clienteValido = notasSeleccionadasData[0];
     
-    if (!clienteValido?.ruc || !clienteValido.Receptor?.razon_social) {
+    if (!clienteValido?.Receptor?.numero_documento || !clienteValido.Receptor?.razon_social) {
       alert("Por favor, asegúrese de haber seleccionado comprobantes con un cliente válido.");
       return;
     }
@@ -118,7 +118,7 @@ export default function ConsolidacionDespachos () {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
                 <strong>Cliente Detectado:</strong>
                 <p className="mt-1 font-semibold">{notasSeleccionadasData[0]?.Receptor.razon_social}</p>
-                <p>RUC: {notasSeleccionadasData[0]?.ruc}</p>
+                <p>RUC: {notasSeleccionadasData[0]?.Receptor.numero_documento}</p>
               </div>
 
               <div className="flex flex-col gap-1.5">
