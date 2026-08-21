@@ -80,30 +80,35 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
             ) : (
                 data?.historicos?.map((item : IComprobanteHistorico) => (
                     <tr key={`${item.id}-${item.numeracion_comprobante}`} className="bg-white border-b transition duration-300 ease-in-out hover:bg-gray-100">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{toLocaleShow(item.fecha_hora)}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 py-4 truncate" title={item.Receptor.razon_social}>{item.Receptor.razon_social}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 py-4 whitespace-nowrap">{item.numeracion_comprobante}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.total}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.isla}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.turno}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">{item.usuario}</td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">
+                        <td className="px-3 py-4 truncate text-sm font-medium text-gray-900">{toLocaleShow(item.fecha_hora)}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate" title={item.Receptor.razon_social}>{item.Receptor.razon_social}</td>
+                        {/* Un comprobante puede llevar varios productos, separados por coma */}
+                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate"
+                            title={item.items?.map(i => i.descripcion).join(', ')}>
+                            {item.items?.map(i => i.descripcion).join(', ')}
+                        </td>
+                        <td className="text-sm text-gray-900 font-light px-3 py-4 truncate">{item.numeracion_comprobante}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.total}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.isla}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.turno}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">{item.usuario}</td>
+                        <td className="text-sm text-gray-900 font-light px-3 ">
                             {isMifactProvider ? (
                                 item.url && item.url != 'null' && (
-                                    <Link href={item.url||"#"} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">PDF</Link>
+                                    <Link href={item.url||"#"} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded">PDF</Link>
                                 )
                             ) : (
-                                <Link href={`/api/comprobante/${item.id}`} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">PDF</Link>
+                                <Link href={`/api/comprobante/${item.id}`} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded">PDF</Link>
                             )}
                         </td>
-                        <td className="text-sm text-gray-900 font-light px-6 ">
+                        <td className="text-sm text-gray-900 font-light px-3 ">
                             {item.errors && (
                                 <Link href={"#"} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1.5 px-2 rounded">ERROR</Link>
                             )}
                             {(isMifactProvider ? (item.url && item.url != 'null') : !!item.pdf_bytes) && !item.numeracion_documento_afectado && (
-                                <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ml-1">N.Credito</Link>
+                                <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-2 rounded ml-1">N.Credito</Link>
                             )}
-                        </td>                                        
+                        </td>
                         <td className="text-sm text-gray-900 font-light px-3 ">
                             <PrintButton id={item.id || 0} session={session} />
                         </td>                    
@@ -145,17 +150,17 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                 {/* Porcentajes que suman 100: con table-fixed la tabla nunca puede
                     exceder el ancho disponible, asi que no aparece scroll horizontal */}
                 <colgroup>
-                    <col className="w-[12%]" />  {/* Fecha */}
-                    <col className="w-[16%]" />  {/* Cliente */}
-                    <col className="w-[13%]" />  {/* Producto */}
+                    <col className="w-[15%]" />  {/* Fecha: alcanza para 'AAAA-MM-DD HH:MM:SS' completo */}
+                    <col className="w-[15%]" />  {/* Cliente */}
+                    <col className="w-[12%]" />  {/* Producto */}
                     <col className="w-[10%]" />  {/* Comprobante */}
-                    <col className="w-[6%]" />   {/* Total */}
-                    <col className="w-[7%]" />   {/* Isla */}
+                    <col className="w-[5%]" />   {/* Total */}
+                    <col className="w-[6%]" />   {/* Isla */}
                     <col className="w-[6%]" />   {/* Turno */}
                     <col className="w-[10%]" />  {/* Usuario */}
                     <col className="w-[6%]" />   {/* PDF */}
                     <col className="w-[9%]" />   {/* SUNAT */}
-                    <col className="w-[5%]" />   {/* Acciones */}
+                    <col className="w-[6%]" />   {/* Acciones: no bajar de 6%, si no el titulo no entra y el fondo gris se ve cortado */}
                 </colgroup>
                 <thead className="bg-gray-200 border-b">
                     <tr>
