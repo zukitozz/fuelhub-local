@@ -24,7 +24,7 @@ const PrintButton = ({ id, session }: Props) => {
   return (
     <button 
       onClick={handlerPrint}
-      className="flex items-center justify-center p-2 mt-3 rounded-md transition-colors"
+      className="flex items-center justify-center p-1 rounded-md transition-colors"
       title="Reimprimir comprobante"
       // Clase para Tailwind para que cambie el fondo en hover
       onMouseOver={(e) => (e.currentTarget.style.backgroundColor = `${livelyColor}1A`)} // Fondo Turquesa suave (10% opacidad)
@@ -32,7 +32,7 @@ const PrintButton = ({ id, session }: Props) => {
       onFocus={(e) => (e.currentTarget.style.backgroundColor = `${livelyColor}1A`)}
       onBlur={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
     >
-      <IoPrintOutline size={30} color={livelyColor} />
+      <IoPrintOutline size={22} color={livelyColor} />
     </button>
   );
 };
