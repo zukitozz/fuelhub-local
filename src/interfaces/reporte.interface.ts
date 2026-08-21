@@ -24,22 +24,31 @@ export interface IReporteCierreDiario {
     conteos: IReporteCierreDiarioConteo[];
 }
 
+//Una fila por item del comprobante: los importes salen del item (valor_venta / igv_venta),
+//que suman exactamente los totales del comprobante, para que la columna no duplique montos.
 export interface IReporteDeclaracionMensual {
-    tipo_comprobante: string;
-    tipo_documento: string;
-    numero_documento: string;
-    numeracion_comprobante: string;
-    tipo_documento_afectado: string;
-    numeracion_documento_afectado: string;
-    fecha_emision: string;
+    //id y total_venta son del comprobante: sirven para agrupar las filas (que vienen
+    //abiertas por item) al mostrarlas en la tabla de pantalla.
+    id: number;
     hora: string;
-    total_gravadas: string;
-    total_igv: string;
-    total_venta: string;
-    dec_combustible: string;
-    volumen: string;
-    pistola: string;
-    tiempo_abastecimiento: string;
+    total_venta: number;
+    volumen: number;
+    //fecha_emision y fecha_documento_afectado son columnas 'date' en SQL Server:
+    //el driver las entrega como Date, no como texto.
+    fecha_emision: string | Date;
+    numeracion_comprobante: string;
+    numero_documento: string;
+    razon_social: string;
+    descripcion: string;
+    valor_venta: number;
+    igv_venta: number;
+    fecha_documento_afectado: string | Date;
+    numeracion_documento_afectado: string;
+    tipo_moneda: string;
+    pago_efectivo: number;
+    pago_tarjeta: number;
+    pago_yape: number;
+    //RUC del emisor: es el mismo en todas las filas
     ruc: string;
 }
 
