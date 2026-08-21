@@ -36,19 +36,14 @@ export interface IReporteDeclaracionMensual {
     //fecha_emision y fecha_documento_afectado son columnas 'date' en SQL Server:
     //el driver las entrega como Date, no como texto.
     fecha_emision: string | Date;
-    tipo_comprobante: string;
     numeracion_comprobante: string;
-    tipo_documento: string;
     numero_documento: string;
     razon_social: string;
     descripcion: string;
-    cantidad_venta: number;
     valor_venta: number;
     igv_venta: number;
     fecha_documento_afectado: string | Date;
-    tipo_documento_afectado: string;
     numeracion_documento_afectado: string;
-    precio: number;
     tipo_moneda: string;
     pago_efectivo: number;
     pago_tarjeta: number;
