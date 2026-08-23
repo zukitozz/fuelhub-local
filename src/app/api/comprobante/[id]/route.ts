@@ -237,7 +237,7 @@ export async function GET(
           </td>
           <td style="width: 40%;">
             <div class="ruc-box">
-              <h2>RUC: 20123456789</h2>
+              <h2>RUC: ${process.env.NEXT_PUBLIC_RUC}</h2>
               <div class="document-type">${comprobante.TipoComprobante}</div>
               <div class="number">${comprobante.NumeracionComprobante}</div>
             </div>
