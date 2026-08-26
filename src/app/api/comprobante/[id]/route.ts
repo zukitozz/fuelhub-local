@@ -32,7 +32,7 @@ export async function GET(
 
     const comprobante = await obtieneComprobantePDF(comprobanteId);
 
-    const qrText = `${process.env.NEXT_PUBLIC_RUC_EMISOR || ''}|${comprobante.TipoComprobante}|${comprobante.NumeracionComprobante}|${comprobante.TotalIgv}|${comprobante.TotalVenta}|${toLocaleOnlyDate(comprobante.FechaEmision)}|${comprobante.ReceptorRuc || '00000000'}`;
+    const qrText = `${process.env.NEXT_PUBLIC_RUC || ''}|${comprobante.TipoComprobante}|${comprobante.NumeracionComprobante}|${comprobante.TotalIgv}|${comprobante.TotalVenta}|${toLocaleOnlyDate(comprobante.FechaEmision)}|${comprobante.ReceptorRuc || '00000000'}`;
 
     // 3. Generar el código QR en formato DataURL (Base64)
     const qrDataUrl = await QRCode.toDataURL(qrText, {
@@ -271,9 +271,9 @@ export async function GET(
         <tr>
           <td class="info-label">Método Pago:</td>
           <td class="info-value" colspan="3">
-            Efectivo: S/ ${currencyFormat(comprobante.Efectivo)} | 
-            Tarjeta: S/ ${currencyFormat(comprobante.Tarjeta)} | 
-            Yape: S/ ${currencyFormat(comprobante.Yape)}
+            Efectivo: ${currencyFormat(comprobante.Efectivo)} | 
+            Tarjeta: ${currencyFormat(comprobante.Tarjeta)} | 
+            Yape: ${currencyFormat(comprobante.Yape)}
           </td>
         </tr>
       </table>
