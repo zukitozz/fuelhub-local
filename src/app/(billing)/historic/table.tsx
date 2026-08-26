@@ -97,7 +97,7 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                             {item.errors && (
                                 <Link href={"#"} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1.5 px-2 rounded">ERROR</Link>
                             )}
-                            {(!!item.pdf_bytes || !!item.url) && !item.numeracion_documento_afectado && (
+                            {!!item.enviado && !item.errors && !item.numeracion_documento_afectado && (
                                 <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-2 rounded ml-1">N.Credito</Link>
                             )}
                         </td>
