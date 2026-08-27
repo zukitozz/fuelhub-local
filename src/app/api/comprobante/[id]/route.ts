@@ -251,6 +251,10 @@ export async function GET(
           <td class="info-value" colspan="3">${comprobante.ReceptorRazonSocial}</td>
         </tr>
         <tr>
+          <td class="info-label">Dirección:</td>
+          <td class="info-value" colspan="3">${comprobante.ReceptorDireccion || '---'}</td>
+        </tr>
+        <tr>
           <td class="info-label">RUC / DNI:</td>
           <td class="info-value">${comprobante.ReceptorRuc}</td>
           <td class="info-label">Fecha Emisión:</td>
