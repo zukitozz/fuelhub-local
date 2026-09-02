@@ -423,35 +423,69 @@ import { toLocaleStorage } from './formats';
             const pool: ConnectionPool = await sql.connect(config);
             const transaction: Transaction = new sql.Transaction(pool);
             const isla = session?.user.isla || "";
-        
+
             await transaction.begin();
-            //Insertar cierre
-            const sqlRequest = new sql.Request(transaction);
-            sqlRequest.input('total', sql.Float, total);
-            sqlRequest.input('isla', sql.NVarChar, isla);
+            try {
+                //El total llega del navegador, calculado al abrir la pantalla. Si un despachador
+                //cierra turno despues, ese turno igual entra por el barrido de mas abajo
+                //(CierrediaId IS NULL) y la cabecera queda por debajo de su propio detalle.
+                //Se recalcula aqui con el MISMO criterio del barrido para contrastarlo con lo
+                //que el administrador tiene a la vista.
+                const reqPendiente = new sql.Request(transaction);
+                const pendiente = Number((await reqPendiente.query(`
+                    select ISNULL(sum(total), 0) as total from Cierreturnos where CierrediaId is null
+                `)).recordset[0]?.total || 0);
 
-            const result = await sqlRequest.query(`INSERT INTO Cierredias (
-                total, fecha, isla, estado
-            ) VALUES ( 
-                @total, GETDATE(), @isla, 1
-            ); SELECT SCOPE_IDENTITY() AS id;`);
-            
-            const cierrediaId = result.recordset[0]?.id;
+                //No se cierra en silencio con una cifra que el administrador nunca vio: contra el
+                //voucher impreso se cuadra el efectivo del dia.
+                //Se compara en centavos enteros: en punto flotante una diferencia de
+                //exactamente un centavo da 0.010000000000218 y disparaba el bloqueo de mas.
+                if (Math.abs(Math.round(pendiente * 100) - Math.round(Number(total || 0) * 100)) > 1) {
+                    throw new Error(`El total cambio mientras estabas en la pantalla: mostraba ${Number(total || 0).toFixed(2)} y ahora hay ${pendiente.toFixed(2)}. Actualiza la pantalla y vuelve a cerrar el dia.`);
+                }
 
-            //Actualizar cierre turnos
-            const sqlRequestComprobantes = new sql.Request(transaction);
-            sqlRequestComprobantes.input('CierrediaId', sql.Int, cierrediaId);
-            await sqlRequestComprobantes.query(`Update Cierreturnos set CierrediaId = @CierrediaId where CierrediaId is null`);
+                //La cabecera entra en 0 y se completa despues del barrido: asi el total se deriva
+                //de los turnos que realmente quedaron enganchados y no puede descuadrar contra su
+                //detalle ni aunque entre un turno entre la validacion y el barrido.
+                const sqlRequest = new sql.Request(transaction);
+                sqlRequest.input('isla', sql.NVarChar, isla);
 
-            await transaction.commit();
-            return {
-                message: "Cierre de dia realizado correctamente",
-                status: true,                    
-            }            
+                const result = await sqlRequest.query(`INSERT INTO Cierredias (
+                    total, fecha, isla, estado
+                ) VALUES ( 
+                    0, GETDATE(), @isla, 1
+                ); SELECT SCOPE_IDENTITY() AS id;`);
+
+                const cierrediaId = result.recordset[0]?.id;
+
+                //Actualizar cierre turnos
+                const sqlRequestComprobantes = new sql.Request(transaction);
+                sqlRequestComprobantes.input('CierrediaId', sql.Int, cierrediaId);
+                await sqlRequestComprobantes.query(`Update Cierreturnos set CierrediaId = @CierrediaId where CierrediaId is null`);
+
+                const sqlRequestTotal = new sql.Request(transaction);
+                sqlRequestTotal.input('CierrediaId', sql.Int, cierrediaId);
+                await sqlRequestTotal.query(`Update Cierredias set total = (select ISNULL(sum(total), 0) from Cierreturnos where CierrediaId = @CierrediaId) where id = @CierrediaId`);
+
+                await transaction.commit();
+                return {
+                    message: "Cierre de dia realizado correctamente",
+                    status: true,                    
+                }            
+            }catch(error){
+                console.error("Error executing transaction: saveCierreDiaTransaction");
+                console.error(error);
+                //Sin el rollback la transaccion queda abierta reteniendo bloqueos sobre Cierreturnos
+                await transaction.rollback();
+                return {
+                    message: `Error al cerrar dia | ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+                    status: false,                    
+                }
+            }
         }catch(error){
             console.error("Pool connection error:", error);
             return {
-                message: `Error al cerrar dia | ${JSON.stringify(error)}`,
+                message: `Error al cerrar dia | ${error instanceof Error ? error.message : JSON.stringify(error)}`,
                 status: false,                    
             }
         }
