@@ -22,7 +22,7 @@ export const CierreSection = ({ page, perPage, keyword }: TableProps) => {
     const { data: session } = useSession();
     const [isProcessing, setIsProcessing] = useState(false); // 2. Estado de bloqueo global para el botón
     
-    const { data, error, isLoading, isValidating } = useSWR(
+    const { data, error, isLoading, isValidating, mutate } = useSWR(
         `${process.env.NEXT_PUBLIC_URL}/api`, 
         (url: string) => fetcher(page, perPage, keyword)
     );
@@ -78,12 +78,15 @@ export const CierreSection = ({ page, perPage, keyword }: TableProps) => {
             const { message, status } = await saveCierreDia(session, totalGeneral);
             if(status){          
                 notify({message})
+                router.push('/')
             }else{
                 notify({message, type: 'error'})
+                //Al fallar se queda en la pantalla y revalida: si el cierre se rechazo porque
+                //entro un turno nuevo, el administrador necesita verlo reflejado para reintentar.
+                await mutate();
             }
         }finally{
             setIsProcessing(false);
-            router.push('/')
         }        
     }  
 
