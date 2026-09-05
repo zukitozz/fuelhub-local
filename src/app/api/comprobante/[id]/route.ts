@@ -17,7 +17,6 @@ export async function GET(
 
     // Proveedor alterno: si ya se generó el PDF antes, se sirve el mismo guardado
     // en vez de regenerarlo (evita que un comprobante legal cambie de contenido con el tiempo).
-    if (!Constants.PROVEEDOR_MIFACT) {
       const storedPdf = await getComprobantePdfBytes(comprobanteId);
       if (storedPdf) {
         return new NextResponse(Buffer.from(storedPdf), {
@@ -28,7 +27,6 @@ export async function GET(
           },
         });
       }
-    }
 
     const comprobante = await obtieneComprobantePDF(comprobanteId);
 
@@ -372,14 +370,12 @@ export async function GET(
     });
 
     await browser.close();
-
-    if (!Constants.PROVEEDOR_MIFACT) {
-      try {
-        await saveComprobantePdfBytes(comprobanteId, Buffer.from(pdfBuffer));
-      } catch (saveError) {
-        // No se debe romper la descarga del PDF si falla el guardado del histórico
-        console.error("Error guardando pdf_bytes del comprobante:", saveError);
-      }
+    console.log("aca estoy rony culon")
+    try {
+      await saveComprobantePdfBytes(comprobanteId, Buffer.from(pdfBuffer));
+    } catch (saveError) {
+      // No se debe romper la descarga del PDF si falla el guardado del histórico
+      console.error("Error guardando pdf_bytes del comprobante:", saveError);
     }
 
     // ==========================================
