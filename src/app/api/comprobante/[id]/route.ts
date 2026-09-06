@@ -1,5 +1,5 @@
 import { obtieneComprobantePDF } from '@/actions';
-import { currencyFormat, toLocaleOnlyDate, toLocaleShow, Constants } from '@/utils';
+import { currencyFormat, toLocaleOnlyDate, toLocaleShow } from '@/utils';
 import { getComprobantePdfBytes, saveComprobantePdfBytes } from '@/utils/db';
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
@@ -370,7 +370,6 @@ export async function GET(
     });
 
     await browser.close();
-    console.log("aca estoy rony culon")
     try {
       await saveComprobantePdfBytes(comprobanteId, Buffer.from(pdfBuffer));
     } catch (saveError) {

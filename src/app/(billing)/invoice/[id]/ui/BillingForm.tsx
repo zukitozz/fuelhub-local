@@ -88,6 +88,14 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
             return false;
         }
 
+        //La factura exige RUC: el atajo de mas abajo que saltea las validaciones cuando el
+        //documento es "0" es para el consumidor final de las boletas, y sin esta regla dejaba
+        //emitir facturas a nombre de clientes varios, que SUNAT no acepta.
+        if (tipoComprobante === Constants.TIPO_COMPROBANTE.FACTURA && (tipoDocumento !== Constants.TIPO_DOCUMENTO.RUC || numeroDocumento.length !== 11)) {
+            notify({ message: 'La factura se emite solo con RUC (11 dígitos)', type: 'error' });
+            return false;
+        }
+
         if(formValues.numeroDocumento != "0"){
             if(!tipoDocumento){
                 notify({ message: 'Ingrese un número de documento de 8 u 11 dígitos', type: 'error' });
