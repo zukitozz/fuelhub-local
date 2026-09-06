@@ -70,6 +70,14 @@ export const BillingEditForm = ({ billing }: Props) => {
             return false;
         }
 
+        //Una nota de credito que corrige una factura tiene que llevar el mismo RUC: el atajo de
+        //mas abajo que saltea las validaciones cuando el documento es "0" es para el consumidor
+        //final de las boletas, y sin esta regla dejaba acreditar una factura a clientes varios.
+        if (documentoAfectado.current.tipo === Constants.TIPO_COMPROBANTE.FACTURA && (tipoDocumento !== Constants.TIPO_DOCUMENTO.RUC || numeroDocumento.length !== 11)) {
+            notify({ message: 'La nota de crédito de una factura se emite solo con RUC (11 dígitos)', type: 'error' });
+            return false;
+        }
+
         if(formValues.numeroDocumento != "0"){
             if(!tipoDocumento){
                 notify({ message: 'Ingrese un número de documento de 8 u 11 dígitos', type: 'error' });
