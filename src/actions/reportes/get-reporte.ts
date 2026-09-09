@@ -78,7 +78,8 @@ export async function obtieneReporteDeclaracionMensual(fecha: string): Promise<I
         `
             select
                 c.id, c.fecha_emision, LEFT(convert(varchar,c.fecha_hora,108), 8) as hora,
-                CAST(c.total_venta as decimal(18,2)) as total_venta, c.volumen,
+                case when tipo_comprobante = '07' then CAST(c.total_venta as decimal(18,2)) * -1 else CAST(c.total_venta as decimal(18,2)) end as total_venta, 
+                c.volumen,
                 c.numeracion_comprobante,
                 r.numero_documento, r.razon_social,
                 i.descripcion,
