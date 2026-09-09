@@ -1,5 +1,5 @@
 import { obtieneComprobantePDF } from '@/actions';
-import { currencyFormat, toLocaleOnlyDate, toLocaleShow } from '@/utils';
+import { currencyFormat, toLocaleOnlyDate } from '@/utils';
 import { getComprobantePdfBytes, saveComprobantePdfBytes } from '@/utils/db';
 import { NextRequest, NextResponse } from 'next/server';
 import puppeteer from 'puppeteer';
@@ -18,12 +18,12 @@ export async function GET(
     // Proveedor alterno: si ya se generó el PDF antes, se sirve el mismo guardado
     // en vez de regenerarlo (evita que un comprobante legal cambie de contenido con el tiempo).
       const storedPdf = await getComprobantePdfBytes(comprobanteId);
-      if (storedPdf) {
-        return new NextResponse(Buffer.from(storedPdf), {
+      if (storedPdf?.pdf_bytes) {
+        return new NextResponse(Buffer.from(storedPdf.pdf_bytes), {
           status: 200,
           headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `inline; filename="comprobante-${comprobanteId}.pdf"`,
+            'Content-Disposition': `inline; filename="${process.env.NEXT_PUBLIC_RUC}-${storedPdf.numeracion_comprobante}.pdf"`,
           },
         });
       }
@@ -386,7 +386,7 @@ export async function GET(
       headers: {
         'Content-Type': 'application/pdf',
         // 'inline' abre el PDF en el navegador. Cambia a 'attachment' si deseas descarga directa instantánea.
-        'Content-Disposition': `inline; filename="comprobante-${comprobante.NumeracionComprobante}.pdf"`,
+        'Content-Disposition': `inline; filename="${process.env.NEXT_PUBLIC_RUC}-${comprobante.NumeracionComprobante}.pdf"`,
       },
     });
 

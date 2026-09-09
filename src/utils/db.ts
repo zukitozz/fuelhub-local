@@ -258,15 +258,19 @@ import { toLocaleStorage } from './formats';
             throw error;
         }
     }
-
-    export async function getComprobantePdfBytes(id: number): Promise<Buffer | null> {
+    type ComprobantePdf = {
+        numeracion_comprobante: string;
+        pdf_bytes: Buffer|null;
+    }
+    export async function getComprobantePdfBytes(id: number): Promise<ComprobantePdf> {
         config.database = process.env.DB_DATABASE_AUXILIAR || "";
         const pool = await sql.connect(config);
         const request = pool.request();
         request.input('id', sql.Int, id);
-        const result = await request.query(`SELECT pdf_bytes FROM Comprobantes WHERE id = @id`);
+        const result = await request.query(`SELECT numeracion_comprobante, pdf_bytes FROM Comprobantes WHERE id = @id`);
         const bytes = result.recordset[0]?.pdf_bytes;
-        return bytes ? Buffer.from(bytes) : null;
+        const numeracion = result.recordset[0]?.numeracion_comprobante;
+        return { numeracion_comprobante: numeracion, pdf_bytes: bytes ? Buffer.from(bytes) : null };
     }
 
     export async function saveComprobantePdfBytes(id: number, pdfBytes: Buffer): Promise<void> {
