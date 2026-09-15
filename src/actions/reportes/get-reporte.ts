@@ -35,11 +35,12 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
                 CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END
             )
             select agrupado.codigo, agrupado.producto, agrupado.medida, agrupado.tipo,
-            ISNULL(conteo.ventas, 0) as ventas, agrupado.volumen, agrupado.soles
+            ISNULL(conteo.ventas, 0) as ventas, agrupado.volumen, agrupado.soles, p.precio
             from (
                 select codigo, producto, medida, tipo, SUM(cantidad) as volumen, SUM(soles) as soles
                 from detalle group by codigo, producto, medida, tipo
             ) agrupado
+            left join Productos p on p.codigo = agrupado.codigo
             left join conteo on conteo.codigo = agrupado.codigo
                 and conteo.producto = agrupado.producto
                 and conteo.tipo = agrupado.tipo
