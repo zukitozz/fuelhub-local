@@ -14,10 +14,11 @@ export async function getReceptores(page: number, perPage: number, keyword?: str
     const end = (page * perPage);
 
     // 1. Definir el filtro base para reutilizarlo en la paginación y en el conteo total
-    let innerFilter = "";
+    // Solo clientes activos: los eliminados quedan con estado = 0
+    let innerFilter = " WHERE estado = 1";
     if (keyword && keyword.trim() !== "") {
         const cleanKeyword = keyword.trim().replace(/'/g, "''"); // Evita roturas básicas por comillas singulares
-        innerFilter = ` WHERE (numero_documento LIKE '%${cleanKeyword}%' OR razon_social LIKE '%${cleanKeyword}%')`;
+        innerFilter += ` AND (numero_documento LIKE '%${cleanKeyword}%' OR razon_social LIKE '%${cleanKeyword}%')`;
     }
 
     // 2. Aplicamos el filtro DENTRO del subquery para que ROW_NUMBER actúe sobre los datos filtrados
@@ -94,7 +95,7 @@ export async function getReceptorByRazonSocial(razon_social: string): Promise<IR
     try {
      const receptor = await executeQuery<IReceptor[]>(
         process.env.DB_DATABASE_AUXILIAR||"", 
-        `SELECT TOP 10 id, tipo_documento,numero_documento,razon_social,direccion,correo,placa FROM Receptores WHERE razon_social like '%${razon_social}%'`
+        `SELECT TOP 10 id, tipo_documento,numero_documento,razon_social,direccion,correo,placa FROM Receptores WHERE estado = 1 AND razon_social like '%${razon_social}%'`
     );   
      return receptor as IReceptor[];
     } catch (error) {
