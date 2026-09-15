@@ -8,6 +8,8 @@ export interface IReporteCierreDiarioDetalle {
     ventas: number;
     volumen: number;
     soles: number;
+    // Precio por unidad (PPU) de la tabla Productos; null si el codigo ya no existe
+    precio: number | null;
 }
 
 // Comprobantes distintos por tipo de movimiento, separando combustible de otros

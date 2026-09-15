@@ -11,7 +11,7 @@ import { IReporteCierreDiarioDetalle } from '@/interfaces';
 
 const fetcher = (fecha: string) => obtieneReporteCierreDiarioDetallado(fecha);
 
-// Todas las secciones usan las mismas columnas: PRODUCTO, VENTAS (comprobantes),
+// Todas las secciones usan las mismas columnas: PRODUCTO, PRECIO, VENTAS (comprobantes),
 // CANTIDAD (galones en combustible, unidades en el resto) y SOLES.
 interface ISeccion {
     titulo: string;
@@ -91,10 +91,11 @@ export const ReporteDiario = () => {
         secciones.forEach((seccion, index) => {
             if (index > 0) rows.push([]);
             rows.push([seccion.titulo.toUpperCase()]);
-            rows.push(['PRODUCTO', 'VENTAS', 'CANTIDAD', 'SOLES']);
+            rows.push(['PRODUCTO', 'PRECIO', 'VENTAS', 'CANTIDAD', 'SOLES']);
             seccion.filas.forEach(fila => {
                 rows.push([
                     fila.producto,
+                    fila.precio === null ? '' : Number(fila.precio.toFixed(2)),
                     fila.ventas,
                     Number(fila.volumen.toFixed(3)),
                     Number(fila.soles.toFixed(2))
@@ -102,16 +103,17 @@ export const ReporteDiario = () => {
             });
             rows.push([
                 'TOTAL',
+                '',
                 seccion.ventas,
                 Number(seccion.cantidad.toFixed(3)),
                 Number(seccion.soles.toFixed(2))
             ]);
         });
         rows.push([]);
-        rows.push(['TOTAL GENERAL', '', '', Number(totalGeneral.toFixed(2))]);
+        rows.push(['TOTAL GENERAL', '', '', '', Number(totalGeneral.toFixed(2))]);
 
         const worksheet = XLSX.utils.aoa_to_sheet(rows);
-        worksheet['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
+        worksheet['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Cierre Diario");
         XLSX.writeFile(workbook, `Cierre_Diario_${date}.xlsx`);
@@ -168,7 +170,7 @@ export const ReporteDiario = () => {
                                 {/* Separacion entre secciones para distinguirlas de un vistazo */}
                                 {index > 0 && (
                                     <tr aria-hidden="true">
-                                        <td colSpan={4} className="h-4 bg-white"></td>
+                                        <td colSpan={5} className="h-4 bg-white"></td>
                                     </tr>
                                 )}
                                 {/* Cada seccion repite el encabezado; CANTIDAD son galones en
@@ -177,6 +179,7 @@ export const ReporteDiario = () => {
                                     <th scope="rowgroup" className="px-4 py-1.5 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                                         {seccion.titulo}
                                     </th>
+                                    <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Precio</th>
                                     <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Ventas</th>
                                     <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Cantidad</th>
                                     <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Soles</th>
@@ -184,6 +187,7 @@ export const ReporteDiario = () => {
                                 {seccion.filas.map(fila => (
                                     <tr key={`${fila.tipo}-${fila.codigo}-${fila.producto}`} className="hover:bg-blue-50/50 transition-colors">
                                         <td className="px-4 py-1.5 whitespace-nowrap font-medium text-gray-900">{fila.producto}</td>
+                                        <td className="px-4 py-1.5 whitespace-nowrap text-right font-semibold text-blue-600">{fila.precio?.toFixed(2) ?? ''}</td>
                                         <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">{fila.ventas}</td>
                                         <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">{fila.volumen.toFixed(3)}</td>
                                         <td className="px-4 py-1.5 whitespace-nowrap text-right font-semibold text-gray-900">{currencyFormat(fila.soles)}</td>
@@ -192,6 +196,7 @@ export const ReporteDiario = () => {
                                 {/* Fila de Totales */}
                                 <tr className="bg-gray-50 font-bold border-t border-gray-300">
                                     <td className="px-4 py-1.5 text-gray-900 uppercase">Total</td>
+                                    <td className="px-4 py-1.5"></td>
                                     <td className="px-4 py-1.5 text-right text-gray-900">{seccion.ventas}</td>
                                     <td className="px-4 py-1.5 text-right text-gray-900">{seccion.cantidad.toFixed(3)}</td>
                                     <td className="px-4 py-1.5 text-right text-blue-700">{currencyFormat(seccion.soles)}</td>
@@ -200,10 +205,11 @@ export const ReporteDiario = () => {
                         ))}
                         <tfoot>
                             <tr aria-hidden="true">
-                                <td colSpan={4} className="h-4 bg-white"></td>
+                                <td colSpan={5} className="h-4 bg-white"></td>
                             </tr>
                             <tr className="bg-blue-50 border-t-2 border-blue-300">
                                 <td className="px-4 py-2 font-bold text-gray-900 uppercase tracking-wider">Total general</td>
+                                <td className="px-4 py-2"></td>
                                 <td className="px-4 py-2"></td>
                                 <td className="px-4 py-2"></td>
                                 <td className="px-4 py-2 text-right font-bold text-blue-700">{currencyFormat(totalGeneral)}</td>
