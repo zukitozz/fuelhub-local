@@ -134,6 +134,10 @@ import { toLocaleStorage } from './formats';
                     sqlReceptorRequest.output('resultado', sql.Int);
                     const receptor = await sqlReceptorRequest.execute(`dbo.spReceptorCrear`);
                     const id_receptor = receptor.output['resultado']
+                    //Si se factura a un cliente eliminado (inactivo), el sp lo reutiliza: se reactiva
+                    const sqlReactivarRequest = new sql.Request(transaction);
+                    sqlReactivarRequest.input('id', sql.Int, id_receptor);
+                    await sqlReactivarRequest.query(`UPDATE Receptores set estado = 1 where id = @id and estado = 0`);
                     //Insertar comprobante
                     const sqlRequest = new sql.Request(transaction);
                     sqlRequest.input('tipo_comprobante', sql.NVarChar, tipo_comprobante);
