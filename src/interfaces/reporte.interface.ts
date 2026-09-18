@@ -85,4 +85,11 @@ export interface IReporteComprobantes {
     total: number;
     // Productos del comprobante, separados por coma cuando lleva mas de uno
     productos: string;
+    // Cantidad e isla del producto combustible del comprobante (no de los demas
+    // productos que pueda llevar, ej. market)
+    cantidad: number;
+    isla: string | null;
+    // Precio unitario del producto combustible unicamente: si el comprobante lleva
+    // mas de un producto (ej. combustible + market), no se mezcla con los otros precios
+    precio_producto: number | null;
 }
