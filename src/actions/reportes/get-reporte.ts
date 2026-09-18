@@ -167,16 +167,28 @@ export async function obtieneReporteComprobantes({ boletas, factura, notasCredit
     //dec_combustible solo se llena en ventas de combustible, por eso los productos se
     //arman desde Items. Se usa FOR XML PATH y no STRING_AGG porque el servidor es
     //SQL Server 2012 y esa funcion recien existe desde la 2017.
+    //cantidad/isla salen directo de la cabecera de Comprobantes (volumen, IslaId): ya
+    //corresponden solo al producto combustible del abastecimiento, no a otros productos
+    //(ej. market) que pueda llevar el mismo comprobante.
+    //precio_producto se obtiene aparte, cruzando Items por codigo_producto = codigo_combustible,
+    //para no mezclarlo con el precio de esos otros productos cuando hay mas de uno.
     const query = `
         select TOP 100 c.id as id, numeracion_comprobante as comprobante, c.fecha_hora as fecha, fecha_abastecimiento as fechahora, r.numero_documento, r.razon_social as receptor, c.placa, c.dec_combustible,
         ISNULL(STUFF((
             select ', ' + i.descripcion
             from Items i where i.ComprobanteId = c.id
             for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
-        c.total  as total, u.nombre as usuario, c.url
+        c.total  as total, u.nombre as usuario, c.url,
+        c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto
         from Comprobantes c
         inner join Receptores r on c.ReceptorId = r.id
         inner join Usuarios u on c.UsuarioId = u.id
+        left join Islas isla on c.IslaId = isla.id
+        outer apply (
+            select TOP 1 CAST(i.precio_unitario as float) as precio_unitario
+            from Items i
+            where i.ComprobanteId = c.id and i.codigo_producto = c.codigo_combustible
+        ) fp
         ${where} order by c.id desc
         `;
     const comprobantes = await executeQuery<IReporteComprobantes[]>(
