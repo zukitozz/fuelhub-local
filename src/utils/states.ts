@@ -1,4 +1,5 @@
-import { IBillingForm, IDepositos, IDescuentoTable, IGastos, IProduct, IReceptor, IUser } from "@/interfaces";
+import { IBillingForm, IDepositos, IDescuentoTable, IGastos, IProduct, IReceptor, ISerieTable, IUser } from "@/interfaces";
+import { Constants } from "./constants";
 
 export const initialBillingForm: IBillingForm = {
     numeroDocumento: '',
@@ -10,6 +11,7 @@ export const initialBillingForm: IBillingForm = {
     efectivo: 0,
     tarjeta: 0,
     yape: 0,
+    fechaEmision: "",
 }
 
 export const initialProductForm: IProduct = {
@@ -77,6 +79,18 @@ export const initialDescuentoForm: IDescuentoTable = {
     estado: 1,
     descripcion_producto: "",
     cliente: "",
+}
+
+export const initialSerieForm: ISerieTable = {
+    id: 0,
+    codigo_proposito: Constants.CODIGO_PROPOSITO.INTERNA,
+    tipo_comprobante: "",
+    serie: "",
+    estado: 1,
+    descripcion: "",
+    fecha_retroactiva: false,
+    numeracion_actual: null,
+    fecha_ultimo_comprobante: null,
 }
 
 

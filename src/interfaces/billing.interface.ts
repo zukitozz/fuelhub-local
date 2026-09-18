@@ -8,4 +8,5 @@ export interface IBillingForm {
     efectivo: number|string;
     tarjeta: number|string;
     yape: number|string;
+    fechaEmision: string;
 }

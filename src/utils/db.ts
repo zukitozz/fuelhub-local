@@ -1,4 +1,4 @@
-import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, IProduct, IProductoStoreResponse } from '@/interfaces';
+import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, IDbResponse, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
 import sql, { ConnectionPool, ISqlTypeFactoryWithLength, ISqlTypeFactoryWithNoParams, Transaction } from 'mssql';
 import { Constants } from './constants';
 import { Session } from 'next-auth';
@@ -85,6 +85,16 @@ import { toLocaleStorage } from './formats';
                             throw new Error(`El comprobante ${numeracion_documento_afectado} ya tiene la nota de crédito ${numeracionPrevia}`);
                         }
                     }
+                    //El codigo_proposito de Series depende de quien emite: el administrador tiene su
+                    //propia serie (FACTURAS_BOLETAS_NC_ADMIN), distinta de la venta por dispensador.
+                    //Se resuelve por el rol guardado en BD y no por lo que declare el cliente.
+                    const sqlUsuarioRequest = new sql.Request(transaction);
+                    sqlUsuarioRequest.input('UsuarioId', sql.Int, UsuarioId);
+                    const usuarioEmisor = await sqlUsuarioRequest.query(`SELECT rol FROM Usuarios WHERE id = @UsuarioId`);
+                    const codigoProposito = usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE
+                        ? Constants.CODIGO_PROPOSITO.ADMIN
+                        : Constants.CODIGO_PROPOSITO.INTERNA;
+
                     //Obtiene prefijo
                     let prefijo: string = '';
                     if (tipo_comprobante === '07' && tipo_documento_afectado === '01') {
@@ -105,10 +115,26 @@ import { toLocaleStorage } from './formats';
                     //Obtener Serie
                     const sqlSerieRequest = new sql.Request(transaction);
                     sqlSerieRequest.input('tipo_comprobante', sql.NVarChar, tipo_comprobante);
-                    sqlSerieRequest.input('tipo_facturacion', sql.NVarChar, 'FACTURAS_BOLETAS_NC_INTERNA');
-                    const serie = await sqlSerieRequest.query(`SELECT serie from Series c where tipo_comprobante = @tipo_comprobante and codigo_proposito= @tipo_facturacion`);
-                    
+                    sqlSerieRequest.input('tipo_facturacion', sql.NVarChar, codigoProposito);
+                    const serie = await sqlSerieRequest.query(`SELECT serie, fecha_retroactiva from Series c where tipo_comprobante = @tipo_comprobante and codigo_proposito= @tipo_facturacion and estado = 1`);
+
                     const serieId = serie.recordset[0]?.serie;
+                    const serieFechaRetroactiva = !!serie.recordset[0]?.fecha_retroactiva;
+
+                    //La fecha de emision nunca puede ser futura, y solo puede ser distinta a hoy
+                    //si la serie activa lo habilita explicitamente. Se valida contra la fecha del
+                    //servidor, no la que declare el cliente, para que no se pueda burlar el flag.
+                    const fechaHoy = toLocaleStorage(new Date()).slice(0, 10);
+                    const fechaEmisionSolicitada = (fecha_emision || '').slice(0, 10);
+                    if (fechaEmisionSolicitada !== fechaHoy) {
+                        if (fechaEmisionSolicitada > fechaHoy) {
+                            throw new Error('La fecha de emisión no puede ser posterior a hoy');
+                        }
+                        if (!serieFechaRetroactiva) {
+                            throw new Error('Esta serie no permite emitir comprobantes con fecha retroactiva');
+                        }
+                    }
+
                     const sqlCorrelativoRequest = new sql.Request(transaction);
                     sqlCorrelativoRequest.input('idTipoDocumento', sql.NVarChar, tipo_comprobante);//07
                     sqlCorrelativoRequest.input('idSerie', sql.NVarChar, serieId);//001
@@ -591,6 +617,56 @@ import { toLocaleStorage } from './formats';
             message,
             status: false,
             producto: null
-        };   
+        };
+    }
+}
+
+export async function saveSerieTransaction({ id, codigo_proposito, tipo_comprobante, serie, estado, descripcion, fecha_retroactiva }: ISerie): Promise<IDbResponse> {
+    config.database = process.env.DB_DATABASE_AUXILIAR || "";
+    const pool: ConnectionPool = await sql.connect(config);
+    const transaction: Transaction = new sql.Transaction(pool);
+    try {
+        await transaction.begin();
+
+        const excluirActual = id ? `AND id <> ${id}` : '';
+
+        // Llave natural: codigo_proposito + tipo_comprobante + serie
+        const dupRequest = new sql.Request(transaction);
+        const duplicada = await dupRequest.query(`SELECT id FROM Series WHERE codigo_proposito = '${codigo_proposito}' AND tipo_comprobante = '${tipo_comprobante}' AND serie = '${serie}' ${excluirActual}`);
+        if (duplicada.recordset.length > 0) {
+            await transaction.rollback();
+            return { success: false, message: 'Ya existe una serie con ese propósito, tipo de comprobante y serie' };
+        }
+
+        // Solo puede haber una serie activa por propósito + tipo de comprobante: activar esta
+        // desactiva automáticamente cualquier otra que comparta esa llave.
+        let desactivadas = 0;
+        if (Number(estado) === 1) {
+            const desactivarRequest = new sql.Request(transaction);
+            const resultado = await desactivarRequest.query(`UPDATE Series SET estado = 0 WHERE codigo_proposito = '${codigo_proposito}' AND tipo_comprobante = '${tipo_comprobante}' AND estado = 1 ${excluirActual}`);
+            desactivadas = resultado.rowsAffected[0] || 0;
+        }
+
+        const descripcionEscapada = (descripcion || '').replace(/'/g, "''");
+        const fechaRetroactivaValor = fecha_retroactiva ? 1 : 0;
+        const saveRequest = new sql.Request(transaction);
+        const query = id
+            ? `UPDATE Series SET estado = ${estado}, descripcion = '${descripcionEscapada}', fecha_retroactiva = ${fechaRetroactivaValor} WHERE id = ${id}`
+            : `INSERT INTO Series (codigo_proposito, tipo_comprobante, serie, estado, descripcion, fecha_retroactiva) VALUES ('${codigo_proposito}', '${tipo_comprobante}', '${serie}', ${estado}, '${descripcionEscapada}', ${fechaRetroactivaValor})`;
+        await saveRequest.query(query);
+
+        await transaction.commit();
+        const message = desactivadas > 0
+            ? `Serie guardada correctamente. Se desactivó ${desactivadas === 1 ? 'la otra serie activa' : `las otras ${desactivadas} series activas`} de este propósito y tipo de comprobante`
+            : 'Serie guardada correctamente';
+        return { success: true, message };
+    } catch (error) {
+        console.error("Error executing transaction: saveSerieTransaction");
+        console.error(error);
+        try { await transaction.rollback(); } catch (e) { console.error("Error en rollback", e); }
+        return {
+            success: false,
+            message: `Ocurrió un error al guardar la serie | ${error instanceof Error ? error.message : JSON.stringify(error)}`
+        };
     }
 }

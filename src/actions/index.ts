@@ -13,3 +13,4 @@ export * from './billing';
 export * from './productos';
 export * from './reportes';
 export * from './usuarios';
+export * from './series';

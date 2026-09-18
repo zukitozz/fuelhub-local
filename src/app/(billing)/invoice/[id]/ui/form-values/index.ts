@@ -1,4 +1,5 @@
-export * from './Direccion'; 
+export * from './Direccion';
+export * from './FechaEmision';
 export * from './NumeroDocumento';
 export * from './Placa';
 export * from './RazonSocial';

@@ -40,4 +40,8 @@ export const Constants = {
         ISLA: 'VENTA_ISLA',
         ADMINISTRADOR: 'VENTA_TOTAL'
     },
+    CODIGO_PROPOSITO: {
+        INTERNA: 'FACTURAS_BOLETAS_NC_INTERNA',
+        ADMIN: 'FACTURAS_BOLETAS_NC_ADMIN',
+    },
 }

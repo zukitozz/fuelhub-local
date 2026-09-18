@@ -2,10 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { saveBilling, saveCheckNc } from "@/actions";
+import { getSerieActivaRetroactiva, saveBilling, saveCheckNc } from "@/actions";
 import { Constants, notify, toLocaleStorage } from "@/utils";
 import { IBillingForm, IComprobanteAdmin } from "@/interfaces";
-import { NumeroDocumento, Placa, RazonSocial, Direccion, TipoPago } from "@/app/(billing)/invoice/[id]/ui/form-values";
+import { NumeroDocumento, Placa, RazonSocial, Direccion, FechaEmision, TipoPago } from "@/app/(billing)/invoice/[id]/ui/form-values";
 
 interface Props {
         billing: IComprobanteAdmin;
@@ -38,7 +38,8 @@ export const BillingEditForm = ({ billing }: Props) => {
         placa: billing.Receptor?.placa || "",
         efectivo: billing.efectivo,
         tarjeta: billing.tarjeta,
-        yape: billing.yape
+        yape: billing.yape,
+        fechaEmision: ""
     }
 
     const [formValues, setFormValues] = useState<IBillingForm>(form);
@@ -51,6 +52,20 @@ export const BillingEditForm = ({ billing }: Props) => {
     const { tipoDocumento, numeroDocumento, razonSocial, efectivo, tarjeta, yape } = formValues;
     // Mientras procesa, y despues de emitir hasta que la navegacion complete
     const botonBloqueado = isProcessing || emitido;
+    const UsuarioId = +(session?.user.id || 0);
+
+    // La reemision de NC siempre usa tipo_comprobante '07': se consulta una sola vez si la
+    // serie activa de notas de credito permite elegir una fecha retroactiva.
+    const [permiteFechaRetroactiva, setPermiteFechaRetroactiva] = useState(false);
+
+    useEffect(() => {
+        if (!UsuarioId) return;
+        let vigente = true;
+        getSerieActivaRetroactiva(Constants.TIPO_COMPROBANTE.NOTA_CREDITO, UsuarioId).then(permite => {
+            if (vigente) setPermiteFechaRetroactiva(permite);
+        });
+        return () => { vigente = false; };
+    }, [UsuarioId]);
 
     const getTitle = () => {
         if (tipoDocumento === Constants.TIPO_DOCUMENTO.RUC) return 'NOTA CREDITO FACTURA ELECTRÓNICA';
@@ -103,7 +118,6 @@ export const BillingEditForm = ({ billing }: Props) => {
         return true;
     };    
 
-    const UsuarioId = +(session?.user.id || 0);
     const IslaId = +(session?.user.islaId || 0);
 
     const handlerProcessBilling = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -135,7 +149,8 @@ export const BillingEditForm = ({ billing }: Props) => {
         billing.fecha_documento_afectado = toLocaleStorage(documentoAfectado.current.fecha);
         billing.tipo_documento_afectado = documentoAfectado.current.tipo;
 
-        billing.fecha_emision = toLocaleStorage(new Date());
+        // Fecha de hoy salvo que la serie activa de NC permita retroactiva y se haya elegido otra
+        billing.fecha_emision = formValues.fechaEmision || toLocaleStorage(new Date());
         billing.fecha_hora = toLocaleStorage(new Date());
         billing.fecha_abastecimiento = '';
         billing.numeracion_comprobante = "";
@@ -167,6 +182,7 @@ export const BillingEditForm = ({ billing }: Props) => {
                     <Placa formValues={formValues} setFormValues={setFormValues} />
                     <RazonSocial formValues={formValues} setFormValues={setFormValues} />
                     <Direccion formValues={formValues} setFormValues={setFormValues} />
+                    <FechaEmision formValues={formValues} setFormValues={setFormValues} permiteRetroactiva={permiteFechaRetroactiva} />
                     <TipoPago total={total} formValues={formValues} setFormValues={setFormValues} />
                     <div className="col-span-2">
                         <button className={`${botonBloqueado ? "btn-disabled" : "btn-primary"} px-5 py-2 mt-3 w-full`}

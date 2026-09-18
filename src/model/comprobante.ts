@@ -59,12 +59,15 @@ export class Comprobante implements IComprobanteAdmin{
         fecha_abastecimiento: Date|null, tiempo_abastecimiento: number | null, IslaId: number, 
         id_abastecimiento: number|null = null, pistola: number = 0, codigo_combustible: string = "", volumen: number = 0, 
         inicio_medidor: number = 0, fin_medidor: number = 0, monto_letras: string|null = null,
-        notas: number[] = [], volumen_tanque: number = 0, dec_combustible: string = "", comentario: string = ""
+        notas: number[] = [], volumen_tanque: number = 0, dec_combustible: string = "", comentario: string = "",
+        fecha_emision: string|null = null
     ) {
         this.tipo_comprobante = tipo_comprobante;
         this.numeracion = "";
         this.numeracion_comprobante = "";
-        this.fecha_emision = toLocaleStorage(new Date());
+        // Por defecto la fecha de hoy: solo se pisa cuando la serie activa permite fecha
+        // retroactiva y el formulario mando una fecha distinta (siempre <= hoy).
+        this.fecha_emision = fecha_emision || toLocaleStorage(new Date());
         this.tipo_moneda = "PEN";
         this.tipo_operacion = "0101";
         this.tipo_nota = null;
