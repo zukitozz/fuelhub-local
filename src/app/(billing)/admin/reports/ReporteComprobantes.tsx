@@ -203,9 +203,10 @@ export const ReporteComprobantes = () => {
                                     <td className="px-4 py-3 truncate text-sm text-right text-gray-600">{item.precio_producto != null ? currencyFormat(item.precio_producto) : '-'}</td>
                                     <td className="px-4 py-3 truncate text-sm text-gray-600">{item.usuario}</td>
                                     <td className="px-4 py-3 truncate text-sm text-gray-600">
-                                        {item.url && item.url != 'null' && (
-                                            <Link href={item.url||"#"} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-xs">PDF</Link>
-                                        )}
+                                        {/* /api/comprobante/[id] genera el PDF al vuelo (o sirve el cacheado): a
+                                            diferencia de item.url, no depende de que el envio a SUNAT/MiFact haya
+                                            terminado, asi que siempre esta disponible (igual que en /historic) */}
+                                        <Link href={`/api/comprobante/${item.id}`} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-xs">PDF</Link>
                                     </td>
                                     <td className="px-4 py-3 truncate text-sm text-right font-semibold text-gray-900">{currencyFormat(item.total)}</td>
                                 </tr>
