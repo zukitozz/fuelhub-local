@@ -9,3 +9,4 @@ export * from './receptor.interface';
 export * from './reporte.interface';
 export * from './user.interface';
 export * from './notadespacho.interface';
+export * from './serie.interface';

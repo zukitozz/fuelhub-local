@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { saveBilling, validatePrevBilling } from "@/actions";
+import { getSerieActivaRetroactiva, saveBilling, validatePrevBilling } from "@/actions";
 import { useOrderAbastecimientoStore } from "@/store";
 import { Constants, initialBillingForm, notify, numbersToLetters } from "@/utils";
-import { Direccion, NumeroDocumento, Placa, RazonSocial, TipoComprobanteSelector, TipoPago } from "./form-values";
+import { Direccion, FechaEmision, NumeroDocumento, Placa, RazonSocial, TipoComprobanteSelector, TipoPago } from "./form-values";
 import { Comprobante } from "@/model";
 import { IBillingForm, IComprobanteAdminItem, IOrderItem, IReceptor } from "@/interfaces";
 
@@ -57,6 +57,31 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
     
 
     const { tipoComprobante, tipoDocumento, numeroDocumento, razonSocial, placa, direccion, efectivo, tarjeta, yape } = formValues;
+    const UsuarioId = +(session?.user.id || 0);
+
+    // La serie activa (segun rol del usuario) decide si se puede elegir una fecha de
+    // emision retroactiva para el tipo de comprobante actualmente seleccionado.
+    const [permiteFechaRetroactiva, setPermiteFechaRetroactiva] = useState(false);
+
+    useEffect(() => {
+        if (!tipoComprobante || !UsuarioId) {
+            setPermiteFechaRetroactiva(false);
+            return;
+        }
+        let vigente = true;
+        getSerieActivaRetroactiva(tipoComprobante, UsuarioId).then(permite => {
+            if (vigente) setPermiteFechaRetroactiva(permite);
+        });
+        return () => { vigente = false; };
+    }, [tipoComprobante, UsuarioId]);
+
+    // Si deja de estar permitida (cambio de tipo de comprobante), se limpia la fecha elegida
+    // para que no quede una fecha retroactiva "escondida" que se envie sin que se vea el campo.
+    useEffect(() => {
+        if (!permiteFechaRetroactiva && formValues.fechaEmision) {
+            setFormValues(prevValues => ({ ...prevValues, fechaEmision: '' }));
+        }
+    }, [permiteFechaRetroactiva]);
 
     const getTitle = () => {
         if (tipoComprobante === Constants.TIPO_COMPROBANTE.NOTA_DESPACHO) return 'NOTA DE DESPACHO';
@@ -121,7 +146,6 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
         return true;
     };    
 
-    const UsuarioId = +(session?.user.id || 0);
     const IslaId = +(session?.user.islaId || 0);
 
     const handlerProcessBilling = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -179,8 +203,9 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
         const monto_letras = numbersToLetters(total);
 
         const comprobante = new Comprobante(
-            receptor, tipoComprobante, subTotal, totalIgv, total, tarjeta==''?0: +tarjeta, efectivo==''?0: +efectivo, yape==''?0: +yape, ruc, UsuarioId, items, placa, 
-            fecha_abastecimiento, tiempo_abastecimiento, IslaId, id_abastecimiento, pistola, codigo_producto, cantidad, inicio_medidor, fin_medidor, monto_letras, arr_notas
+            receptor, tipoComprobante, subTotal, totalIgv, total, tarjeta==''?0: +tarjeta, efectivo==''?0: +efectivo, yape==''?0: +yape, ruc, UsuarioId, items, placa,
+            fecha_abastecimiento, tiempo_abastecimiento, IslaId, id_abastecimiento, pistola, codigo_producto, cantidad, inicio_medidor, fin_medidor, monto_letras, arr_notas,
+            0, "", "", formValues.fechaEmision || null
         )
 
         const validatePrev = await validatePrevBilling(id_abastecimiento);
@@ -214,8 +239,9 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
                     <Placa formValues={formValues} setFormValues={setFormValues}/>
                     <RazonSocial formValues={formValues} setFormValues={setFormValues}/>
                     <Direccion formValues={formValues} setFormValues={setFormValues}/>
+                    <FechaEmision formValues={formValues} setFormValues={setFormValues} permiteRetroactiva={permiteFechaRetroactiva} />
                     <TipoPago total={total} formValues={formValues} setFormValues={setFormValues} />
-                    
+
                     <div className="col-span-2">
                         <button 
                             className={`${isProcessing ? "btn-disabled" : "btn-primary"} px-5 py-2 mt-3 w-full`} 
