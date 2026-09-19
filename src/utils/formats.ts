@@ -39,10 +39,12 @@ export const toLocaleShow = (date: string|Date) => {
   }else {
     fecha = date;
   }
-  if (fecha === undefined){
+  // fecha invalida (ej. string vacio o undefined convertido a '' antes de llegar aca):
+  // toISOString() lanza RangeError en vez de devolver algo, hay que cortar antes.
+  if (!fecha || Number.isNaN(fecha.getTime())){
     return '';
-  }  
-  return fecha.toISOString().replace('T', ' ').replace(/\..*Z$/, '').replace('Z', ''); 
+  }
+  return fecha.toISOString().replace('T', ' ').replace(/\..*Z$/, '').replace('Z', '');
 }
 
 export const toLocaleOnlyDate = (date: string|Date) => {
@@ -51,6 +53,9 @@ export const toLocaleOnlyDate = (date: string|Date) => {
     fecha = new Date(date);
   }else {
     fecha = date;
+  }
+  if (!fecha || Number.isNaN(fecha.getTime())){
+    return '';
   }
   return fecha.toISOString().split('T')[0];
 }
@@ -61,7 +66,10 @@ export const toIsoString = (date: string|Date) => {
     fecha = new Date(date);
   }else {
     fecha = date;
-  }  
+  }
+  if (!fecha || Number.isNaN(fecha.getTime())){
+    return '';
+  }
   return fecha.toISOString().slice(0, 19).replace('T', ' ');
 }
 
