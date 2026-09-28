@@ -8,6 +8,7 @@ import { ICierreTurno, ICierreTurnoDetalle, IDepositos, IGastos } from '@/interf
 import { currencyFormat, notify, notifyConfirm, toLocaleStorage } from '@/utils';
 import { useSession } from "next-auth/react";
 import { ResumenTable } from '@/components';
+import { EditarCierreModal } from '../../cierreturno/EditarCierreModal';
 
 interface TableProps {
   page: number;
@@ -21,6 +22,7 @@ export const CierreSection = ({ page, perPage, keyword }: TableProps) => {
     const router = useRouter();
     const { data: session } = useSession();
     const [isProcessing, setIsProcessing] = useState(false); // 2. Estado de bloqueo global para el botón
+    const [cierreEditando, setCierreEditando] = useState<ICierreTurno | null>(null);
     
     const { data, error, isLoading, isValidating, mutate } = useSWR(
         `${process.env.NEXT_PUBLIC_URL}/api`, 
@@ -231,11 +233,27 @@ export const CierreSection = ({ page, perPage, keyword }: TableProps) => {
                                         {currencyFormat((cierre.total || 0) - totalDepositosTurno - totalGastosTurno)}
                                     </span>
                                 </div>
-                            </div>  
+
+                                <button
+                                    className="mt-3 px-4 py-2 w-full text-sm rounded border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors font-semibold"
+                                    onClick={() => setCierreEditando(cierre)}
+                                >
+                                    Editar
+                                </button>
+                            </div>
                         );
                     })
                 }
             </div>
+            {
+                cierreEditando && (
+                    <EditarCierreModal
+                        cierre={cierreEditando}
+                        onClose={() => setCierreEditando(null)}
+                        onSaved={() => mutate()}
+                    />
+                )
+            }
         </>
     )
 }

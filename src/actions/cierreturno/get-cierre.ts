@@ -60,22 +60,38 @@ export async function obtieneCierreTurno(usuarioId: string): Promise<Props> {
 export async function obtieneHistoricoCierres(usuarioId: string): Promise<ICierreTurno[]> {
 
     const cierres = await executeQuery<ICierreTurno[]>(
-        process.env.DB_DATABASE_AUXILIAR||"", 
+        process.env.DB_DATABASE_AUXILIAR||"",
         `
-            select top 2 id, total, fecha, turno, isla, efectivo, tarjeta, yape, UsuarioId  
-            from Cierreturnos 
+            select top 2 id, total, fecha, turno, isla, efectivo, tarjeta, yape, UsuarioId,
+            CierrediaId, observaciones, billetes_contado, monedas_contado, tarjeta_contado,
+            transferencia_contado, yape_contado, falsos_contado, actualizado_por, fecha_actualizacion
+            from Cierreturnos
             where UsuarioId = ${usuarioId} order by id desc;
         `
     );
     await Promise.all(
         cierres.map(async cierre => {
             const detalle = await executeQuery<ICierreTurnoDetalle[]>(
-                process.env.DB_DATABASE_AUXILIAR||"", 
+                process.env.DB_DATABASE_AUXILIAR||"",
                 `
                     select codigo,producto,medida,total_cantidad,total_soles,calibracion_cantidad,calibracion_soles,despacho_cantidad,despacho_soles from Cierreturnosdetalle where CierreturnoId = ${cierre.id};
                 `
             );
             cierre.detalle = detalle;
+            const depositos = await executeQuery<IDepositos[]>(
+                process.env.DB_DATABASE_AUXILIAR||"",
+                `
+                    select id, concepto, fecha, monto, usuario, turno, UsuarioId from Depositos where CierreturnoId = ${cierre.id};
+                `
+            );
+            cierre.depositos = depositos;
+            const gastos = await executeQuery<IGastos[]>(
+                process.env.DB_DATABASE_AUXILIAR||"",
+                `
+                    select id, concepto, fecha, monto, usuario_gasto, autorizado, turno, UsuarioId from Gastos where CierreturnoId = ${cierre.id};
+                `
+            );
+            cierre.gastos = gastos;
             return cierre;
         })
     )

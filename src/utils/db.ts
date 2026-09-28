@@ -1,4 +1,4 @@
-import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, IDbResponse, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
+import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, IDbResponse, IEditarCierreTurno, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
 import sql, { ConnectionPool, ISqlTypeFactoryWithLength, ISqlTypeFactoryWithNoParams, Transaction } from 'mssql';
 import { Constants } from './constants';
 import { Session } from 'next-auth';
@@ -446,6 +446,120 @@ import { toLocaleStorage } from './formats';
                 message: `Error al cerrar turno | ${JSON.stringify(error)}`,
                 status: false,                    
             }            
+        } finally {
+            if (pool) await pool.close();
+        }
+    }
+
+    export async function updateCierreTurnoTransaction(session: Session|null, payload: IEditarCierreTurno): Promise<ICierreTurnoResponse>{
+        config.database = process.env.DB_DATABASE_AUXILIAR||"";
+        const pool: ConnectionPool = await sql.connect(config);
+        try {
+            const transaction: Transaction = new sql.Transaction(pool);
+            try {
+                const usuarioSesionId = +(session?.user.id || 0);
+                await transaction.begin();
+
+                //No se confia en el rol/usuario que declara el cliente: se relee el cierre y el
+                //rol real del usuario de sesion desde la base, igual que saveBillingTransaction.
+                const reqCierre = new sql.Request(transaction);
+                reqCierre.input('id', sql.Int, payload.id);
+                const cierre = (await reqCierre.query(`
+                    SELECT UsuarioId, CierrediaId FROM Cierreturnos WHERE id = @id
+                `)).recordset[0] as { UsuarioId: number; CierrediaId: number|null } | undefined;
+
+                if (!cierre) {
+                    throw new Error(`El cierre de turno indicado no existe`);
+                }
+
+                const reqUsuario = new sql.Request(transaction);
+                reqUsuario.input('usuarioSesionId', sql.Int, usuarioSesionId);
+                const usuarioSesion = (await reqUsuario.query(`
+                    SELECT rol FROM Usuarios WHERE id = @usuarioSesionId
+                `)).recordset[0] as { rol: string } | undefined;
+
+                const esAdmin = usuarioSesion?.rol === Constants.ROL.ADMIN_ROLE;
+                const esDueno = cierre.UsuarioId === usuarioSesionId;
+
+                if (!esAdmin && !esDueno) {
+                    throw new Error(`No tienes permiso para editar este cierre de turno`);
+                }
+
+                if (cierre.CierrediaId !== null && cierre.CierrediaId !== undefined) {
+                    throw new Error(`Este cierre ya fue consolidado en un cierre de dia y no se puede editar`);
+                }
+
+                const sqlRequest = new sql.Request(transaction);
+                sqlRequest.input('id', sql.Int, payload.id);
+                sqlRequest.input('observaciones', sql.NVarChar, payload.observaciones || null);
+                sqlRequest.input('billetes_contado', sql.Float, payload.billetes_contado);
+                sqlRequest.input('monedas_contado', sql.Float, payload.monedas_contado);
+                sqlRequest.input('tarjeta_contado', sql.Float, payload.tarjeta_contado);
+                sqlRequest.input('transferencia_contado', sql.Float, payload.transferencia_contado);
+                sqlRequest.input('yape_contado', sql.Float, payload.yape_contado);
+                sqlRequest.input('falsos_contado', sql.Float, payload.falsos_contado);
+                sqlRequest.input('actualizado_por', sql.Int, usuarioSesionId);
+                sqlRequest.input('fecha_actualizacion', sql.NVarChar, toLocaleStorage(new Date()));
+                await sqlRequest.query(`
+                    UPDATE Cierreturnos SET
+                        observaciones = @observaciones,
+                        billetes_contado = @billetes_contado,
+                        monedas_contado = @monedas_contado,
+                        tarjeta_contado = @tarjeta_contado,
+                        transferencia_contado = @transferencia_contado,
+                        yape_contado = @yape_contado,
+                        falsos_contado = @falsos_contado,
+                        actualizado_por = @actualizado_por,
+                        fecha_actualizacion = @fecha_actualizacion
+                    WHERE id = @id
+                `);
+
+                for (const gasto of payload.gastos) {
+                    const reqGasto = new sql.Request(transaction);
+                    reqGasto.input('id', sql.Int, gasto.id);
+                    reqGasto.input('cierreturnoId', sql.Int, payload.id);
+                    reqGasto.input('concepto', sql.NVarChar, gasto.concepto);
+                    reqGasto.input('monto', sql.Float, gasto.monto);
+                    reqGasto.input('autorizado', sql.NVarChar, gasto.autorizado || '');
+                    await reqGasto.query(`
+                        UPDATE Gastos SET concepto = @concepto, monto = @monto, autorizado = @autorizado
+                        WHERE id = @id AND CierreturnoId = @cierreturnoId
+                    `);
+                }
+
+                for (const deposito of payload.depositos) {
+                    const reqDeposito = new sql.Request(transaction);
+                    reqDeposito.input('id', sql.Int, deposito.id);
+                    reqDeposito.input('cierreturnoId', sql.Int, payload.id);
+                    reqDeposito.input('concepto', sql.NVarChar, deposito.concepto);
+                    reqDeposito.input('monto', sql.Float, deposito.monto);
+                    await reqDeposito.query(`
+                        UPDATE Depositos SET concepto = @concepto, monto = @monto
+                        WHERE id = @id AND CierreturnoId = @cierreturnoId
+                    `);
+                }
+
+                await transaction.commit();
+
+                return {
+                    message: "Cierre de turno actualizado correctamente",
+                    status: true,
+                }
+            }catch(error){
+                console.error("Error executing transaction: updateCierreTurnoTransaction");
+                console.error(error);
+                await transaction.rollback();
+                return {
+                    message: `Error al actualizar cierre | ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+                    status: false,
+                }
+            }
+        } catch (error) {
+            console.error("Pool connection error:", error);
+            return {
+                message: `Error al actualizar cierre | ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+                status: false,
+            }
         } finally {
             if (pool) await pool.close();
         }

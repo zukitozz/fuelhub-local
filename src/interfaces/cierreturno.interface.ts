@@ -50,6 +50,16 @@ export interface ICierreTurno {
     tarjeta: number;
     yape: number;
     UsuarioId: number;
+    CierrediaId?: number|null;
+    observaciones?: string|null;
+    billetes_contado?: number|null;
+    monedas_contado?: number|null;
+    tarjeta_contado?: number|null;
+    transferencia_contado?: number|null;
+    yape_contado?: number|null;
+    falsos_contado?: number|null;
+    actualizado_por?: number|null;
+    fecha_actualizacion?: string|null;
     detalle?: ICierreTurnoDetalle[];
     usuario?: IUser;
     depositos?: IDepositos[];
@@ -59,6 +69,19 @@ export interface ICierreTurno {
 export interface ICierreTurnoResponse {
     message: string;
     status: boolean;
+}
+
+export interface IEditarCierreTurno {
+    id: number;
+    observaciones: string;
+    billetes_contado: number|null;
+    monedas_contado: number|null;
+    tarjeta_contado: number|null;
+    transferencia_contado: number|null;
+    yape_contado: number|null;
+    falsos_contado: number|null;
+    gastos: IGastos[];
+    depositos: IDepositos[];
 }
 
 export interface IUsuarioTurnoAbierto {
