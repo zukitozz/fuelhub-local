@@ -460,8 +460,11 @@ import { toLocaleStorage } from './formats';
                 const usuarioSesionId = +(session?.user.id || 0);
                 await transaction.begin();
 
-                //No se confia en el rol/usuario que declara el cliente: se relee el cierre y el
-                //rol real del usuario de sesion desde la base, igual que saveBillingTransaction.
+                //No se confia en el rol que declara el cliente: se relee el rol real del
+                //usuario de sesion desde la base, igual que saveBillingTransaction. Editar un
+                //cierre es exclusivo de administradores, y ocurre justamente despues del cierre
+                //de dia (la pantalla que llama a esto solo lista cierres ya consolidados), por
+                //eso no se bloquea por CierrediaId.
                 const reqCierre = new sql.Request(transaction);
                 reqCierre.input('id', sql.Int, payload.id);
                 const cierre = (await reqCierre.query(`
@@ -479,14 +482,9 @@ import { toLocaleStorage } from './formats';
                 `)).recordset[0] as { rol: string } | undefined;
 
                 const esAdmin = usuarioSesion?.rol === Constants.ROL.ADMIN_ROLE;
-                const esDueno = cierre.UsuarioId === usuarioSesionId;
 
-                if (!esAdmin && !esDueno) {
-                    throw new Error(`No tienes permiso para editar este cierre de turno`);
-                }
-
-                if (cierre.CierrediaId !== null && cierre.CierrediaId !== undefined) {
-                    throw new Error(`Este cierre ya fue consolidado en un cierre de dia y no se puede editar`);
+                if (!esAdmin) {
+                    throw new Error(`Solo un administrador puede editar un cierre de turno`);
                 }
 
                 const sqlRequest = new sql.Request(transaction);

@@ -8,8 +8,6 @@ import { currencyFormat, toLocaleShow } from '@/utils/formats';
 import { ResumenTable } from '../../../components/cierres/ResumeTable';
 import { useState } from 'react';
 import { notify } from '@/utils/notify';
-import { EditarCierreModal } from './EditarCierreModal';
-import { Constants } from '@/utils/constants';
 
 const fetcher = (usuarioId: string) => obtieneHistoricoCierres(usuarioId);
 
@@ -17,12 +15,11 @@ export const Historico = () => {
     const { data: session } = useSession();
     const usuarioId = session?.user?.id || "";
     const [isProcessing, setIsProcessing] = useState(false);
-    const [cierreEditando, setCierreEditando] = useState<ICierreTurno | null>(null);
 
     // Key condicionada a usuarioId: mientras la sesion no cargo (usuarioId vacio) la
     // consulta queda en pausa en vez de dispararse con un UsuarioId vacio (causaba un
     // error de sintaxis SQL). Al llegar la sesion la key cambia y SWR refetch solo.
-    const { data, error, isLoading, isValidating, mutate } = useSWR(
+    const { data, error, isLoading, isValidating } = useSWR(
         usuarioId ? [`${process.env.NEXT_PUBLIC_URL}/api`, usuarioId] : null,
         () => fetcher(usuarioId)
     );
@@ -62,11 +59,6 @@ export const Historico = () => {
                             .reduce((acc, item) => acc + item.total_soles, 0) || 0;
 
                         const totalPagos = (cierre.efectivo || 0) + (cierre.tarjeta || 0) + (cierre.yape || 0);
-
-                        const puedeEditar = !cierre.CierrediaId && (
-                            session?.user?.rol === Constants.ROL.ADMIN_ROLE ||
-                            String(cierre.UsuarioId) === usuarioId
-                        );
 
                         return (
                             <div key={ cierre.id } className="bg-gray-50/60 rounded-xl border border-l-4 border-gray-200 border-l-slate-400 p-3 col-span-3 mb-4 last:mb-0">
@@ -144,36 +136,17 @@ export const Historico = () => {
                                         <tr><td className="text-left">YAPE</td><td className="text-right">{currencyFormat(cierre.yape)}</td></tr>
                                     </ResumenTable>                                 
                                 }
-                                <div className="flex gap-2 mt-4">
-                                    <button
-                                        className="btn-primary px-5 py-3 w-full text-lg shadow-lg active:scale-95 transition-transform"
-                                        onClick={() => handlerReprintCierre(cierre.id)} disabled={isProcessing}
-                                    >
-                                        Reimprimir Cierre
-                                    </button>
-                                    {puedeEditar && (
-                                        <button
-                                            className="px-5 py-3 w-full text-lg shadow-lg active:scale-95 transition-transform rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
-                                            onClick={() => setCierreEditando(cierre)} disabled={isProcessing}
-                                        >
-                                            Editar
-                                        </button>
-                                    )}
-                                </div>
+                                <button
+                                    className="btn-primary px-5 py-3 mt-4 w-full text-lg shadow-lg active:scale-95 transition-transform"
+                                    onClick={() => handlerReprintCierre(cierre.id)} disabled={isProcessing}
+                                >
+                                    Reimprimir Cierre
+                                </button>
                             </div>
 
                         );
                     })
                 }
-        {
-            cierreEditando && (
-                <EditarCierreModal
-                    cierre={cierreEditando}
-                    onClose={() => setCierreEditando(null)}
-                    onSaved={() => mutate()}
-                />
-            )
-        }
         </div>
     )
 }

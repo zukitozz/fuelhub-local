@@ -18,6 +18,7 @@ import {
   IoShirtOutline,
   IoTicketOutline,
   IoListOutline,
+  IoTimeOutline,
 } from "react-icons/io5";
 import { useUIStore } from "@/store";
 import { logout } from "@/actions";
@@ -149,6 +150,15 @@ export const Sidebar = () => {
             >
               <IoTicketOutline size={30} />
               <span className="ml-3 text-xl">Reportes</span>
+            </Link>
+
+            <Link
+              href="/admin/cierreturno"
+              onClick={() => closeMenu()}
+              className="flex items-center mt-5 p-2 hover:bg-gray-100 rounded transition-all"
+            >
+              <IoTimeOutline size={30} />
+              <span className="ml-3 text-xl">Cierres de Turno</span>
             </Link>
 
             <Link
