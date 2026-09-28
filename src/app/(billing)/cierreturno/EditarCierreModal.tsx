@@ -1,9 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { ICierreTurno, IDepositos, IGastos } from '@/interfaces';
 import { updateCierreTurno } from '@/actions/cierreturno';
-import { currencyFormat, notify } from '@/utils';
+import { currencyFormat, notify, toLocaleStorage } from '@/utils';
 
 interface Props {
     cierre: ICierreTurno;
@@ -27,6 +27,10 @@ export const EditarCierreModal = ({ cierre, onClose, onSaved }: Props) => {
     });
     const [gastos, setGastos] = useState<IGastos[]>(cierre.gastos || []);
     const [depositos, setDepositos] = useState<IDepositos[]>(cierre.depositos || []);
+    //Contador de ids temporales (negativos) para las filas nuevas agregadas en este modal:
+    //el backend distingue id>0 (UPDATE) de id<=0 (INSERT enganchado a este CierreturnoId).
+    const tempIdRef = useRef(0);
+    const nuevoTempId = () => --tempIdRef.current;
 
     const handleConteoChange = (campo: CampoConteo, valor: string) => {
         setConteo(prev => ({ ...prev, [campo]: valor === '' ? '' : Number(valor) }));
@@ -40,13 +44,44 @@ export const EditarCierreModal = ({ cierre, onClose, onSaved }: Props) => {
     const totalSistema = (cierre.efectivo || 0) + (cierre.tarjeta || 0) + (cierre.yape || 0);
     const diferencia = totalContado - totalSistema;
 
-    const handleGastoChange = (id: number, campo: 'concepto' | 'monto', valor: string) => {
+    const handleGastoChange = (id: number, campo: 'concepto' | 'monto' | 'autorizado', valor: string) => {
         setGastos(prev => prev.map(g => g.id === id ? { ...g, [campo]: campo === 'monto' ? Number(valor) : valor } : g));
     };
 
     const handleDepositoChange = (id: number, campo: 'concepto' | 'monto', valor: string) => {
         setDepositos(prev => prev.map(d => d.id === id ? { ...d, [campo]: campo === 'monto' ? Number(valor) : valor } : d));
     };
+
+    //Un gasto/deposito "olvidado" que nunca se registro: se agrega ya enganchado a este
+    //cierre (usuario_gasto/usuario = el operador dueño del turno, igual que si el lo hubiera
+    //registrado en su momento; autorizado queda libre para que el admin indique quien lo autorizo).
+    const handleAddGasto = () => {
+        setGastos(prev => [...prev, {
+            id: nuevoTempId(),
+            concepto: '',
+            monto: 0,
+            usuario_gasto: cierre.usuario?.usuario || '',
+            autorizado: '',
+            turno: cierre.turno,
+            fecha: toLocaleStorage(new Date()),
+            UsuarioId: cierre.UsuarioId,
+        }]);
+    };
+
+    const handleAddDeposito = () => {
+        setDepositos(prev => [...prev, {
+            id: nuevoTempId(),
+            concepto: '',
+            monto: 0,
+            usuario: cierre.usuario?.usuario || '',
+            turno: cierre.turno,
+            fecha: toLocaleStorage(new Date()),
+            UsuarioId: cierre.UsuarioId,
+        }]);
+    };
+
+    const handleRemoveGasto = (id: number) => setGastos(prev => prev.filter(g => g.id !== id));
+    const handleRemoveDeposito = (id: number) => setDepositos(prev => prev.filter(d => d.id !== id));
 
     const handlerGuardar = async () => {
         setLoading(true);
@@ -167,55 +202,105 @@ export const EditarCierreModal = ({ cierre, onClose, onSaved }: Props) => {
                     </span>
                 </div>
 
-                {gastos.length > 0 && (
-                    <div className="mb-4">
-                        <span className="block mb-1 font-semibold text-sm">Gastos del turno</span>
-                        <div className="flex flex-col gap-2">
-                            {gastos.map(g => (
-                                <div key={g.id} className="flex gap-2">
-                                    <input
-                                        className="flex-1 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
-                                        value={g.concepto}
-                                        onChange={(e) => handleGastoChange(g.id, 'concepto', e.target.value)}
-                                    />
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-28 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
-                                        value={g.monto}
-                                        onFocus={(e) => e.target.select()}
-                                        onChange={(e) => handleGastoChange(g.id, 'monto', e.target.value)}
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-sm">Gastos del turno</span>
+                        <button
+                            type="button"
+                            className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                            onClick={handleAddGasto}
+                        >
+                            + Agregar gasto
+                        </button>
                     </div>
-                )}
+                    <div className="flex flex-col gap-2">
+                        {gastos.map(g => (
+                            <div key={g.id} className="flex gap-2 items-center">
+                                <input
+                                    className="flex-1 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
+                                    placeholder="Concepto"
+                                    value={g.concepto}
+                                    onChange={(e) => handleGastoChange(g.id, 'concepto', e.target.value)}
+                                />
+                                {g.id <= 0 && (
+                                    <input
+                                        className="w-32 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
+                                        placeholder="Autorizado por"
+                                        value={g.autorizado}
+                                        onChange={(e) => handleGastoChange(g.id, 'autorizado', e.target.value)}
+                                    />
+                                )}
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-28 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
+                                    value={g.monto}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => handleGastoChange(g.id, 'monto', e.target.value)}
+                                />
+                                {g.id <= 0 && (
+                                    <button
+                                        type="button"
+                                        className="text-gray-400 hover:text-rose-600 text-sm px-1"
+                                        onClick={() => handleRemoveGasto(g.id)}
+                                        title="Quitar"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        {gastos.length === 0 && (
+                            <span className="text-xs text-gray-400 italic">Sin gastos registrados</span>
+                        )}
+                    </div>
+                </div>
 
-                {depositos.length > 0 && (
-                    <div className="mb-4">
-                        <span className="block mb-1 font-semibold text-sm">Depósitos del turno</span>
-                        <div className="flex flex-col gap-2">
-                            {depositos.map(d => (
-                                <div key={d.id} className="flex gap-2">
-                                    <input
-                                        className="flex-1 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
-                                        value={d.concepto}
-                                        onChange={(e) => handleDepositoChange(d.id, 'concepto', e.target.value)}
-                                    />
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-28 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
-                                        value={d.monto}
-                                        onFocus={(e) => e.target.select()}
-                                        onChange={(e) => handleDepositoChange(d.id, 'monto', e.target.value)}
-                                    />
-                                </div>
-                            ))}
-                        </div>
+                <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-sm">Depósitos del turno</span>
+                        <button
+                            type="button"
+                            className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                            onClick={handleAddDeposito}
+                        >
+                            + Agregar depósito
+                        </button>
                     </div>
-                )}
+                    <div className="flex flex-col gap-2">
+                        {depositos.map(d => (
+                            <div key={d.id} className="flex gap-2 items-center">
+                                <input
+                                    className="flex-1 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
+                                    placeholder="Concepto"
+                                    value={d.concepto}
+                                    onChange={(e) => handleDepositoChange(d.id, 'concepto', e.target.value)}
+                                />
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-28 px-3 py-2 border bg-white rounded shadow-sm focus:outline-blue-500 text-sm"
+                                    value={d.monto}
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => handleDepositoChange(d.id, 'monto', e.target.value)}
+                                />
+                                {d.id <= 0 && (
+                                    <button
+                                        type="button"
+                                        className="text-gray-400 hover:text-rose-600 text-sm px-1"
+                                        onClick={() => handleRemoveDeposito(d.id)}
+                                        title="Quitar"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        {depositos.length === 0 && (
+                            <span className="text-xs text-gray-400 italic">Sin depósitos registrados</span>
+                        )}
+                    </div>
+                </div>
 
                 <div className="flex gap-2 mt-6">
                     <button

@@ -512,29 +512,54 @@ import { toLocaleStorage } from './formats';
                     WHERE id = @id
                 `);
 
+                //Un id positivo es un gasto/deposito ya existente (UPDATE); un id <= 0 es una
+                //fila agregada en el modal para un gasto/deposito que nunca se registro en su
+                //momento y se inserta directo ya enganchado a este cierre.
                 for (const gasto of payload.gastos) {
                     const reqGasto = new sql.Request(transaction);
-                    reqGasto.input('id', sql.Int, gasto.id);
                     reqGasto.input('cierreturnoId', sql.Int, payload.id);
                     reqGasto.input('concepto', sql.NVarChar, gasto.concepto);
                     reqGasto.input('monto', sql.Float, gasto.monto);
                     reqGasto.input('autorizado', sql.NVarChar, gasto.autorizado || '');
-                    await reqGasto.query(`
-                        UPDATE Gastos SET concepto = @concepto, monto = @monto, autorizado = @autorizado
-                        WHERE id = @id AND CierreturnoId = @cierreturnoId
-                    `);
+                    if (gasto.id > 0) {
+                        reqGasto.input('id', sql.Int, gasto.id);
+                        await reqGasto.query(`
+                            UPDATE Gastos SET concepto = @concepto, monto = @monto, autorizado = @autorizado
+                            WHERE id = @id AND CierreturnoId = @cierreturnoId
+                        `);
+                    } else {
+                        reqGasto.input('usuario_gasto', sql.NVarChar, gasto.usuario_gasto || '');
+                        reqGasto.input('turno', sql.NVarChar, gasto.turno || '');
+                        reqGasto.input('fecha', sql.NVarChar, gasto.fecha || toLocaleStorage(new Date()));
+                        reqGasto.input('UsuarioId', sql.Int, gasto.UsuarioId);
+                        await reqGasto.query(`
+                            INSERT INTO Gastos (concepto, monto, usuario_gasto, autorizado, turno, fecha, UsuarioId, CierreturnoId)
+                            VALUES (@concepto, @monto, @usuario_gasto, @autorizado, @turno, @fecha, @UsuarioId, @cierreturnoId)
+                        `);
+                    }
                 }
 
                 for (const deposito of payload.depositos) {
                     const reqDeposito = new sql.Request(transaction);
-                    reqDeposito.input('id', sql.Int, deposito.id);
                     reqDeposito.input('cierreturnoId', sql.Int, payload.id);
                     reqDeposito.input('concepto', sql.NVarChar, deposito.concepto);
                     reqDeposito.input('monto', sql.Float, deposito.monto);
-                    await reqDeposito.query(`
-                        UPDATE Depositos SET concepto = @concepto, monto = @monto
-                        WHERE id = @id AND CierreturnoId = @cierreturnoId
-                    `);
+                    if (deposito.id > 0) {
+                        reqDeposito.input('id', sql.Int, deposito.id);
+                        await reqDeposito.query(`
+                            UPDATE Depositos SET concepto = @concepto, monto = @monto
+                            WHERE id = @id AND CierreturnoId = @cierreturnoId
+                        `);
+                    } else {
+                        reqDeposito.input('usuario', sql.NVarChar, deposito.usuario || '');
+                        reqDeposito.input('turno', sql.NVarChar, deposito.turno || '');
+                        reqDeposito.input('fecha', sql.NVarChar, deposito.fecha || toLocaleStorage(new Date()));
+                        reqDeposito.input('UsuarioId', sql.Int, deposito.UsuarioId);
+                        await reqDeposito.query(`
+                            INSERT INTO Depositos (concepto, monto, usuario, turno, fecha, UsuarioId, CierreturnoId)
+                            VALUES (@concepto, @monto, @usuario, @turno, @fecha, @UsuarioId, @cierreturnoId)
+                        `);
+                    }
                 }
 
                 await transaction.commit();
