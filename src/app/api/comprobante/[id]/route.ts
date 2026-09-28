@@ -39,6 +39,16 @@ export async function GET(
       errorCorrectionLevel: 'M'
     });    
 
+    // Las notas de credito y debito deben indicar que documento modifican
+    const esNota = comprobante.TipoComprobanteCodigo === '07' || comprobante.TipoComprobanteCodigo === '08';
+    const docAfectado = comprobante.NumeracionDocumentoAfectado || '---';
+    const fechaReferencia = comprobante.FechaDocumentoAfectado ? toLocaleOnlyDate(comprobante.FechaDocumentoAfectado) : '---';
+    const bloqueNota = esNota ? `
+        <div class="nota-chips">
+          <span class="chip">Documento afectado: <b>${docAfectado}</b></span>
+          <span class="chip">Fecha de referencia: <b>${fechaReferencia}</b></span>
+        </div>` : '';
+
     const htmlContent = `
     <!DOCTYPE html>
     <html lang="es">
@@ -129,6 +139,17 @@ export async function GET(
         .info-value {
           color: #2d3748;
         }
+        .nota-chips { margin-bottom: 15px; }
+        .nota-chips .chip {
+          display: inline-block;
+          background-color: #edf2f7;
+          border: 1px solid #e2e8f0;
+          border-radius: 4px;
+          padding: 4px 10px;
+          font-size: 8pt;
+          margin-right: 8px;
+        }
+        .nota-chips .chip b { color: #1a365d; }
         .items-table {
           width: 100%;
           border-collapse: collapse;
@@ -227,10 +248,12 @@ export async function GET(
             <div class="company-info">
               <h1>${process.env.NEXT_PUBLIC_RS}</h1>
               <p><strong>Dirección:</strong> ${process.env.NEXT_PUBLIC_EMISOR_DIR}</p>
-              <p style="margin-top: 8px;">
-                <span class="badge">Isla ID: ${comprobante.Isla}</span> &nbsp; 
-                <span class="badge">Pistola: N° ${comprobante.Pistola}</span>
-              </p>
+              ${ comprobante.Isla || comprobante.Pistola ? `
+                <p style="margin-top: 8px;">
+                  ${ comprobante.Isla ? `<span class="badge">Isla ID: ${comprobante.Isla}</span> &nbsp; ` : '' }
+                  ${ comprobante.Pistola ? `<span class="badge">Pistola: N° ${comprobante.Pistola}</span>` : '' }
+                </p>
+              ` : '' }
             </div>
           </td>
           <td style="width: 40%;">
@@ -242,6 +265,8 @@ export async function GET(
           </td>
         </tr>
       </table>
+
+      ${bloqueNota}
 
       <table class="info-section">
         <tr>
@@ -338,7 +363,7 @@ export async function GET(
               <div class="hash-box">${comprobante.CodigoHash || '---'}</div>
               
               <p style="margin: 12px 0 0 0; font-style: italic;">
-                Representación impresa de la Factura Electrónica, generada en conformidad con las normas de SUNAT desde el sistema de control de la estación de servicio.
+                Representación impresa de la ${comprobante.TipoComprobante}, generada en conformidad con las normas de SUNAT desde el sistema de control de la estación de servicio.
               </p>
             </td>
           </tr>

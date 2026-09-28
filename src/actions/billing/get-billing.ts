@@ -48,10 +48,12 @@ export async function obtieneComprobantePDF(id: number): Promise<IComprobantePDF
             'CONTADO' as CondicionPago, c.monto_letras as MontoLetras, c.total as TotalVenta, c.gravadas as TotalGravadas, c.igv as TotalIgv,
             c.pistola as Pistola, i.nombre as Isla, c.placa as Placa, inicio_medidor as InicioMedidor, fin_medidor as FinMedidor,
             c.pago_efectivo as Efectivo, c.pago_tarjeta as Tarjeta, c.pago_yape as Yape, c.codigo_hash as CodigoHash, 
-            c.numeracion_comprobante as NumeracionComprobante 
+            c.numeracion_comprobante as NumeracionComprobante,
+            c.tipo_comprobante as TipoComprobanteCodigo,
+            c.numeracion_documento_afectado as NumeracionDocumentoAfectado, c.fecha_documento_afectado as FechaDocumentoAfectado 
         FROM Comprobantes c 
         INNER JOIN Receptores r on c.ReceptorId = r.id 
-        inner join Islas i on c.IslaId = i.id 
+        left join Islas i on c.IslaId = i.id 
         WHERE c.id = ${id};
     `;
     const query_detalle = `
