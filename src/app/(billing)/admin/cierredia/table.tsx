@@ -21,7 +21,7 @@ export const CierreSection = ({ page, perPage, keyword }: TableProps) => {
     const router = useRouter();
     const { data: session } = useSession();
     const [isProcessing, setIsProcessing] = useState(false); // 2. Estado de bloqueo global para el botón
-    
+
     const { data, error, isLoading, isValidating, mutate } = useSWR(
         `${process.env.NEXT_PUBLIC_URL}/api`, 
         (url: string) => fetcher(page, perPage, keyword)
@@ -231,7 +231,7 @@ export const CierreSection = ({ page, perPage, keyword }: TableProps) => {
                                         {currencyFormat((cierre.total || 0) - totalDepositosTurno - totalGastosTurno)}
                                     </span>
                                 </div>
-                            </div>  
+                            </div>
                         );
                     })
                 }

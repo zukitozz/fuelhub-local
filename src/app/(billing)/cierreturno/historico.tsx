@@ -16,7 +16,13 @@ export const Historico = () => {
     const usuarioId = session?.user?.id || "";
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const { data, error, isLoading, isValidating } = useSWR(`${process.env.NEXT_PUBLIC_URL}/api`, () => fetcher(usuarioId));
+    // Key condicionada a usuarioId: mientras la sesion no cargo (usuarioId vacio) la
+    // consulta queda en pausa en vez de dispararse con un UsuarioId vacio (causaba un
+    // error de sintaxis SQL). Al llegar la sesion la key cambia y SWR refetch solo.
+    const { data, error, isLoading, isValidating } = useSWR(
+        usuarioId ? [`${process.env.NEXT_PUBLIC_URL}/api`, usuarioId] : null,
+        () => fetcher(usuarioId)
+    );
 
     if(!data || isLoading || isValidating || error || !Array.isArray(data)){
         return (<div className="animate-spin rounded-full h-8 w-8 justify-center border-gray-900 border-b-2 align-middle"></div>);
@@ -130,17 +136,17 @@ export const Historico = () => {
                                         <tr><td className="text-left">YAPE</td><td className="text-right">{currencyFormat(cierre.yape)}</td></tr>
                                     </ResumenTable>                                 
                                 }
-                                <button 
+                                <button
                                     className="btn-primary px-5 py-3 mt-4 w-full text-lg shadow-lg active:scale-95 transition-transform"
                                     onClick={() => handlerReprintCierre(cierre.id)} disabled={isProcessing}
                                 >
                                     Reimprimir Cierre
-                                </button>                                 
+                                </button>
                             </div>
-                            
+
                         );
                     })
                 }
-        </div>        
+        </div>
     )
 }
