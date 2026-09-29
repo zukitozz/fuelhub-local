@@ -129,6 +129,11 @@ export interface IComprobantePDF {
     TotalGravadas: number;
     TotalIgv: number;
     TotalVenta: number;
+    //Codigo del tipo de comprobante ('01','03','07'...): TipoComprobante trae el nombre para mostrar
+    TipoComprobanteCodigo: string;
+    //Documento que modifica la nota de credito/debito: en los demas comprobantes llegan en null
+    NumeracionDocumentoAfectado: string | null;
+    FechaDocumentoAfectado: string | Date | null;
     Items: IComprobantePDFItem[];
 }
 
