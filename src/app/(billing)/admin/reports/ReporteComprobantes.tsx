@@ -1,17 +1,32 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import useSWR from 'swr';
 import * as XLSX from 'xlsx';
 import Link from 'next/link';
 import { IoDownloadOutline } from "react-icons/io5";
 import { currencyFormat, toLocaleOnlyDate, toLocaleShow } from "@/utils";
 import { obtieneReporteComprobantes } from "@/actions/reportes/get-reporte";
-import { IReporteComprobantes } from "@/interfaces/reporte.interface";
+
+const PER_PAGE = 50;
 
 // Interface para tipar los datos que vendrán de la API
-const fetcher = (boletas: boolean, factura: boolean, notasCredito: boolean, notasDespacho: boolean, calibracion: boolean, fechaInicio: string, fechaFin: string, usuario: string, ruc: string): Promise<IReporteComprobantes[]> =>
-    obtieneReporteComprobantes({ boletas, factura, notasCredito, notasDespacho, calibracion, fechaInicio, fechaFin, usuario, ruc });
+const fetcher = (boletas: boolean, factura: boolean, notasCredito: boolean, notasDespacho: boolean, calibracion: boolean, fechaInicio: string, fechaFin: string, usuario: string, ruc: string, page: number) =>
+    obtieneReporteComprobantes({ boletas, factura, notasCredito, notasDespacho, calibracion, fechaInicio, fechaFin, usuario, ruc, page, perPage: PER_PAGE });
+
+// Con miles de comprobantes acumulados, mostrar un boton por cada pagina seria
+// inmanejable: se recorta a una ventana alrededor de la pagina actual mas primera/ultima.
+const paginasVisibles = (actual: number, total: number): (number | '...')[] => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const paginas = new Set([1, total, actual, actual - 1, actual + 1, actual - 2, actual + 2]);
+    const ordenadas = Array.from(paginas).filter(p => p >= 1 && p <= total).sort((a, b) => a - b);
+    const resultado: (number | '...')[] = [];
+    ordenadas.forEach((p, i) => {
+        if (i > 0 && p - (ordenadas[i - 1] as number) > 1) resultado.push('...');
+        resultado.push(p);
+    });
+    return resultado;
+};
 
 const TIPOS_COMPROBANTE = [
     { key: "boletas", label: "Boletas" },
@@ -37,7 +52,9 @@ export const ReporteComprobantes = () => {
         calibracion: false,
     });
 
-    const { data, isValidating, isLoading, mutate } = useSWR<IReporteComprobantes[]>(
+    const [page, setPage] = useState(1);
+
+    const { data, isValidating, isLoading, mutate } = useSWR(
         `${process.env.NEXT_PUBLIC_URL}/api-cierres`,
         () => fetcher(
             comprobantes.boletas,
@@ -48,7 +65,8 @@ export const ReporteComprobantes = () => {
             fechaInicio,
             fechaFin,
             usuario,
-            ruc
+            ruc,
+            page
         )
     );
 
@@ -56,30 +74,32 @@ export const ReporteComprobantes = () => {
         setComprobantes(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    // Cálculos de totales optimizados
-    const totalGeneral = useMemo(() => {
-        if (!Array.isArray(data)) return 0;
-        return data.reduce((acc, curr) => acc + curr.total, 0);
-    }, [data]);
-
     const exportToExcel = () => {
-        if (!data || data.length === 0) return;
+        if (!data || data.comprobantes.length === 0) return;
         //La url solo sirve para el boton PDF de la pantalla: en el Excel es una columna
         //larga que no aporta nada
         //fecha_hora se guarda como string de hora local con offset +00:00 (no es UTC real),
         //por eso se lee con toLocaleShow (misma funcion que usa la tabla en pantalla) y no
         //con un Date crudo: si se deja como Date, xlsx lo reinterpreta con la zona horaria
         //del navegador y la hora del Excel sale distinta a la que se ve en pantalla
-        const filas = data.map(({ url, ...resto }) => ({ ...resto, fecha: toLocaleShow(resto.fecha) }));
+        //Exporta solo la pagina actual: para el resultado completo conviene acotar con
+        //los filtros de fecha, igual que el resto de reportes de este panel.
+        const filas = data.comprobantes.map(({ url, ...resto }) => ({ ...resto, fecha: toLocaleShow(resto.fecha) }));
         const worksheet = XLSX.utils.json_to_sheet(filas);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Comprobantes");
-        XLSX.writeFile(workbook, `Reporte_Comprobantes_${fechaInicio}.xlsx`);
+        XLSX.writeFile(workbook, `Reporte_Comprobantes_${fechaInicio}_pagina${page}.xlsx`);
     };
+
+    // Al cambiar cualquier filtro se vuelve a la pagina 1: la pagina 3 de un filtro
+    // anterior probablemente ni exista en el resultado nuevo.
+    useEffect(() => {
+        setPage(1);
+    }, [fechaInicio, fechaFin, usuario, ruc, comprobantes]);
 
     useEffect(() => {
         mutate();
-    }, [fechaInicio, fechaFin, usuario, ruc, comprobantes]);
+    }, [fechaInicio, fechaFin, usuario, ruc, comprobantes, page]);
 
     return (
         <div className="col-span-2 bg-white rounded-lg shadow-md p-6 flex flex-col gap-4">
@@ -88,11 +108,11 @@ export const ReporteComprobantes = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h2 className="text-xl font-bold text-gray-800">Reporte de comprobantes</h2>
-                    <p className="text-xs text-gray-400">Solo se muestran los primeros 100 registros.</p>
+                    <p className="text-xs text-gray-400">{PER_PAGE} registros por página.</p>
                 </div>
                 <button
                     onClick={exportToExcel}
-                    disabled={!data || data.length === 0}
+                    disabled={!data || data.comprobantes.length === 0}
                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-all text-sm font-semibold shadow-sm"
                 >
                     <IoDownloadOutline size={20} />
@@ -192,8 +212,8 @@ export const ReporteComprobantes = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {data && data.length > 0 ? (
-                            data.map((item) => (
+                        {data && data.comprobantes.length > 0 ? (
+                            data.comprobantes.map((item) => (
                                 <tr key={item.id} className="hover:bg-blue-50/50 transition-colors">
                                     <td className="px-4 py-3 truncate text-sm text-gray-600">{toLocaleShow(item.fecha)}</td>
                                     <td className="px-4 py-3 truncate text-sm font-medium text-gray-900">{item.comprobante}</td>
@@ -219,17 +239,54 @@ export const ReporteComprobantes = () => {
                             </tr>
                         )}
                     </tbody>
-                    {/* Fila de Totales */}
-                    {data && data.length > 0 && (
+                    {/* Fila de Totales: suma TODOS los registros filtrados, no solo la pagina actual */}
+                    {data && data.comprobantes.length > 0 && (
                         <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300">
                             <tr>
                                 <td colSpan={8} className="px-4 py-3 text-sm text-gray-900 uppercase">Total General</td>
-                                <td className="px-4 py-3 text-sm text-right text-blue-700">{currencyFormat(totalGeneral)}</td>
+                                <td className="px-4 py-3 text-sm text-right text-blue-700">{currencyFormat(data.totalGeneral)}</td>
                             </tr>
                         </tfoot>
                     )}
                 </table>
             </div>
+
+            {/* PAGINACIÓN */}
+            {data && data.pageNumbers.length > 1 && (
+                <div className="flex items-center justify-center gap-1 flex-wrap">
+                    <button
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="px-3 py-1.5 rounded-md text-sm font-semibold text-gray-600 border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                        Anterior
+                    </button>
+                    {paginasVisibles(page, data.pageNumbers.length).map((item, idx) => (
+                        item === '...' ? (
+                            <span key={`ellipsis-${idx}`} className="px-2 text-gray-400 text-sm">…</span>
+                        ) : (
+                            <button
+                                key={item}
+                                onClick={() => setPage(item)}
+                                className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                                    page === item
+                                        ? 'bg-blue-600 text-white'
+                                        : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                {item}
+                            </button>
+                        )
+                    ))}
+                    <button
+                        onClick={() => setPage(p => Math.min(data.pageNumbers.length, p + 1))}
+                        disabled={page === data.pageNumbers.length}
+                        className="px-3 py-1.5 rounded-md text-sm font-semibold text-gray-600 border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                        Siguiente
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

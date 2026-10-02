@@ -146,8 +146,15 @@ interface IParametrosReporteComprobantes {
     fechaFin: string;
     usuario: string;
     ruc: string;
+    page: number;
+    perPage: number;
 }
-export async function obtieneReporteComprobantes({ boletas, factura, notasCredito, notasDespacho, calibracion, fechaInicio, fechaFin, usuario, ruc }: IParametrosReporteComprobantes): Promise<IReporteComprobantes[]> { 
+interface IReporteComprobantesResponse {
+    comprobantes: IReporteComprobantes[];
+    pageNumbers: number[];
+    totalGeneral: number;
+}
+export async function obtieneReporteComprobantes({ boletas, factura, notasCredito, notasDespacho, calibracion, fechaInicio, fechaFin, usuario, ruc, page, perPage }: IParametrosReporteComprobantes): Promise<IReporteComprobantesResponse> {
     let conditions = '';
     let where = 'where 1=1';
     if(fechaInicio) where += ` and c.fecha_emision >= '${fechaInicio}'`;
@@ -164,6 +171,26 @@ export async function obtieneReporteComprobantes({ boletas, factura, notasCredit
     } else {
         where += ` and 1=0`;
     }
+
+    const db = process.env.DB_DATABASE_AUXILIAR||"";
+
+    //Mismo WHERE que la consulta principal pero sin traer columnas de mas: sirve para
+    //saber cuantas paginas hay y el total general de TODOS los registros filtrados, no
+    //solo los de la pagina actual.
+    const totalResult = await executeQuery<{ total: number, totalGeneral: number }[]>(db, `
+        select COUNT(*) as total, ISNULL(SUM(c.total), 0) as totalGeneral
+        from Comprobantes c
+        inner join Receptores r on c.ReceptorId = r.id
+        ${where}
+    `);
+    const total = totalResult[0]?.total || 0;
+    const totalGeneral = totalResult[0]?.totalGeneral || 0;
+    const pageNumbers: number[] = [];
+    for (let i = 1; i <= Math.ceil(total / perPage); i++) { pageNumbers.push(i); }
+
+    const start = (page * perPage) - (perPage - 1);
+    const end = page * perPage;
+
     //dec_combustible solo se llena en ventas de combustible, por eso los productos se
     //arman desde Items. Se usa FOR XML PATH y no STRING_AGG porque el servidor es
     //SQL Server 2012 y esa funcion recien existe desde la 2017.
@@ -172,27 +199,33 @@ export async function obtieneReporteComprobantes({ boletas, factura, notasCredit
     //(ej. market) que pueda llevar el mismo comprobante.
     //precio_producto se obtiene aparte, cruzando Items por codigo_producto = codigo_combustible,
     //para no mezclarlo con el precio de esos otros productos cuando hay mas de uno.
+    //Se pagina con ROW_NUMBER (no OFFSET/FETCH) para mantenerse consistente con el resto
+    //del codigo (getGastos/getDepositos) y porque el server es SQL Server 2012.
     const query = `
-        select TOP 100 c.id as id, numeracion_comprobante as comprobante, c.fecha_hora as fecha, fecha_abastecimiento as fechahora, r.numero_documento, r.razon_social as receptor, c.placa, c.dec_combustible,
-        ISNULL(STUFF((
-            select ', ' + i.descripcion
-            from Items i where i.ComprobanteId = c.id
-            for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
-        c.total  as total, u.nombre as usuario, c.url,
-        c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto
-        from Comprobantes c
-        inner join Receptores r on c.ReceptorId = r.id
-        inner join Usuarios u on c.UsuarioId = u.id
-        left join Islas isla on c.IslaId = isla.id
-        outer apply (
-            select TOP 1 CAST(i.precio_unitario as float) as precio_unitario
-            from Items i
-            where i.ComprobanteId = c.id and i.codigo_producto = c.codigo_combustible
-        ) fp
-        ${where} order by c.id desc
+        select * from (
+            select c.id as id, numeracion_comprobante as comprobante, c.fecha_hora as fecha, fecha_abastecimiento as fechahora, r.numero_documento, r.razon_social as receptor, c.placa, c.dec_combustible,
+            ISNULL(STUFF((
+                select ', ' + i.descripcion
+                from Items i where i.ComprobanteId = c.id
+                for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
+            c.total  as total, u.nombre as usuario, c.url,
+            c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto,
+            ROW_NUMBER() OVER (ORDER BY c.id DESC) AS RowNum
+            from Comprobantes c
+            inner join Receptores r on c.ReceptorId = r.id
+            inner join Usuarios u on c.UsuarioId = u.id
+            left join Islas isla on c.IslaId = isla.id
+            outer apply (
+                select TOP 1 CAST(i.precio_unitario as float) as precio_unitario
+                from Items i
+                where i.ComprobanteId = c.id and i.codigo_producto = c.codigo_combustible
+            ) fp
+            ${where}
+        ) Result
+        where RowNum between ${start} and ${end}
+        order by RowNum
         `;
-    const comprobantes = await executeQuery<IReporteComprobantes[]>(
-        process.env.DB_DATABASE_AUXILIAR||"", query
-    );    
-    return comprobantes;
+    const comprobantes = await executeQuery<IReporteComprobantes[]>(db, query);
+
+    return { comprobantes, pageNumbers, totalGeneral };
 }
