@@ -155,6 +155,9 @@ interface IReporteComprobantesResponse {
     comprobantes: IReporteComprobantes[];
     pageNumbers: number[];
     totalGeneral: number;
+    totalEfectivo: number;
+    totalTarjeta: number;
+    totalYape: number;
 }
 
 function construyeWhereComprobantes({ boletas, factura, notasCredito, notasDespacho, calibracion, fechaInicio, fechaFin, usuario, ruc }: IFiltrosReporteComprobantes): string {
@@ -186,7 +189,8 @@ const SELECT_COMPROBANTES = `
         from Items i where i.ComprobanteId = c.id
         for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
     c.total  as total, u.nombre as usuario, c.url,
-    c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto
+    c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto,
+    ISNULL(c.pago_efectivo, 0) as pago_efectivo, ISNULL(c.pago_tarjeta, 0) as pago_tarjeta, ISNULL(c.pago_yape, 0) as pago_yape
 `;
 const FROM_COMPROBANTES = `
     from Comprobantes c
@@ -205,16 +209,22 @@ export async function obtieneReporteComprobantes({ page, perPage, ...filtros }: 
     const db = process.env.DB_DATABASE_AUXILIAR||"";
 
     //Mismo WHERE que la consulta principal pero sin traer columnas de mas: sirve para
-    //saber cuantas paginas hay y el total general de TODOS los registros filtrados, no
-    //solo los de la pagina actual.
-    const totalResult = await executeQuery<{ total: number, totalGeneral: number }[]>(db, `
-        select COUNT(*) as total, ISNULL(SUM(c.total), 0) as totalGeneral
+    //saber cuantas paginas hay y los totales (general y por tipo de pago) de TODOS los
+    //registros filtrados, no solo los de la pagina actual.
+    const totalResult = await executeQuery<{ total: number, totalGeneral: number, totalEfectivo: number, totalTarjeta: number, totalYape: number }[]>(db, `
+        select COUNT(*) as total, ISNULL(SUM(c.total), 0) as totalGeneral,
+        ISNULL(SUM(c.pago_efectivo), 0) as totalEfectivo,
+        ISNULL(SUM(c.pago_tarjeta), 0) as totalTarjeta,
+        ISNULL(SUM(c.pago_yape), 0) as totalYape
         from Comprobantes c
         inner join Receptores r on c.ReceptorId = r.id
         ${where}
     `);
     const total = totalResult[0]?.total || 0;
     const totalGeneral = totalResult[0]?.totalGeneral || 0;
+    const totalEfectivo = totalResult[0]?.totalEfectivo || 0;
+    const totalTarjeta = totalResult[0]?.totalTarjeta || 0;
+    const totalYape = totalResult[0]?.totalYape || 0;
     const pageNumbers: number[] = [];
     for (let i = 1; i <= Math.ceil(total / perPage); i++) { pageNumbers.push(i); }
 
@@ -242,7 +252,7 @@ export async function obtieneReporteComprobantes({ page, perPage, ...filtros }: 
         `;
     const comprobantes = await executeQuery<IReporteComprobantes[]>(db, query);
 
-    return { comprobantes, pageNumbers, totalGeneral };
+    return { comprobantes, pageNumbers, totalGeneral, totalEfectivo, totalTarjeta, totalYape };
 }
 
 // Para el Excel: trae TODOS los registros que calzan con el filtro, sin paginar (a
