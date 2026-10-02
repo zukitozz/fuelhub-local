@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import Link from 'next/link';
 import { IoDownloadOutline } from "react-icons/io5";
 import { currencyFormat, toLocaleOnlyDate, toLocaleShow } from "@/utils";
-import { obtieneReporteComprobantes } from "@/actions/reportes/get-reporte";
+import { obtieneReporteComprobantes, obtieneReporteComprobantesExport } from "@/actions/reportes/get-reporte";
 
 const PER_PAGE = 50;
 
@@ -74,21 +74,37 @@ export const ReporteComprobantes = () => {
         setComprobantes(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const exportToExcel = () => {
-        if (!data || data.comprobantes.length === 0) return;
-        //La url solo sirve para el boton PDF de la pantalla: en el Excel es una columna
-        //larga que no aporta nada
-        //fecha_hora se guarda como string de hora local con offset +00:00 (no es UTC real),
-        //por eso se lee con toLocaleShow (misma funcion que usa la tabla en pantalla) y no
-        //con un Date crudo: si se deja como Date, xlsx lo reinterpreta con la zona horaria
-        //del navegador y la hora del Excel sale distinta a la que se ve en pantalla
-        //Exporta solo la pagina actual: para el resultado completo conviene acotar con
-        //los filtros de fecha, igual que el resto de reportes de este panel.
-        const filas = data.comprobantes.map(({ url, ...resto }) => ({ ...resto, fecha: toLocaleShow(resto.fecha) }));
-        const worksheet = XLSX.utils.json_to_sheet(filas);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Comprobantes");
-        XLSX.writeFile(workbook, `Reporte_Comprobantes_${fechaInicio}_pagina${page}.xlsx`);
+    const [exportando, setExportando] = useState(false);
+
+    const exportToExcel = async () => {
+        setExportando(true);
+        try {
+            const todos = await obtieneReporteComprobantesExport({
+                boletas: comprobantes.boletas,
+                factura: comprobantes.facturas,
+                notasCredito: comprobantes.notasCredito,
+                notasDespacho: comprobantes.notasDespacho,
+                calibracion: comprobantes.calibracion,
+                fechaInicio,
+                fechaFin,
+                usuario,
+                ruc,
+            });
+            if (todos.length === 0) return;
+            //La url solo sirve para el boton PDF de la pantalla: en el Excel es una columna
+            //larga que no aporta nada
+            //fecha_hora se guarda como string de hora local con offset +00:00 (no es UTC real),
+            //por eso se lee con toLocaleShow (misma funcion que usa la tabla en pantalla) y no
+            //con un Date crudo: si se deja como Date, xlsx lo reinterpreta con la zona horaria
+            //del navegador y la hora del Excel sale distinta a la que se ve en pantalla
+            const filas = todos.map(({ url, ...resto }) => ({ ...resto, fecha: toLocaleShow(resto.fecha) }));
+            const worksheet = XLSX.utils.json_to_sheet(filas);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Comprobantes");
+            XLSX.writeFile(workbook, `Reporte_Comprobantes_${fechaInicio}_a_${fechaFin}.xlsx`);
+        } finally {
+            setExportando(false);
+        }
     };
 
     // Al cambiar cualquier filtro se vuelve a la pagina 1: la pagina 3 de un filtro
@@ -112,11 +128,11 @@ export const ReporteComprobantes = () => {
                 </div>
                 <button
                     onClick={exportToExcel}
-                    disabled={!data || data.comprobantes.length === 0}
+                    disabled={exportando || !data || data.comprobantes.length === 0}
                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-all text-sm font-semibold shadow-sm"
                 >
                     <IoDownloadOutline size={20} />
-                    Excel
+                    {exportando ? 'Exportando...' : 'Excel'}
                 </button>
             </div>
 
