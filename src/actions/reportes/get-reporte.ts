@@ -136,7 +136,7 @@ export async function obtieneReporteCierreTurnosProductosPorDia(fecha: string, i
     );    
     return cierres;
 }
-interface IParametrosReporteComprobantes {
+interface IFiltrosReporteComprobantes {
     boletas: boolean;
     factura: boolean;
     notasCredito: boolean;
@@ -146,6 +146,8 @@ interface IParametrosReporteComprobantes {
     fechaFin: string;
     usuario: string;
     ruc: string;
+}
+interface IParametrosReporteComprobantes extends IFiltrosReporteComprobantes {
     page: number;
     perPage: number;
 }
@@ -154,7 +156,8 @@ interface IReporteComprobantesResponse {
     pageNumbers: number[];
     totalGeneral: number;
 }
-export async function obtieneReporteComprobantes({ boletas, factura, notasCredito, notasDespacho, calibracion, fechaInicio, fechaFin, usuario, ruc, page, perPage }: IParametrosReporteComprobantes): Promise<IReporteComprobantesResponse> {
+
+function construyeWhereComprobantes({ boletas, factura, notasCredito, notasDespacho, calibracion, fechaInicio, fechaFin, usuario, ruc }: IFiltrosReporteComprobantes): string {
     let conditions = '';
     let where = 'where 1=1';
     if(fechaInicio) where += ` and c.fecha_emision >= '${fechaInicio}'`;
@@ -171,7 +174,34 @@ export async function obtieneReporteComprobantes({ boletas, factura, notasCredit
     } else {
         where += ` and 1=0`;
     }
+    return where;
+}
 
+// Reutilizado por obtieneReporteComprobantes (paginado) y obtieneReporteComprobantesExport
+// (todos los registros, sin paginar, para el Excel).
+const SELECT_COMPROBANTES = `
+    c.id as id, numeracion_comprobante as comprobante, c.fecha_hora as fecha, fecha_abastecimiento as fechahora, r.numero_documento, r.razon_social as receptor, c.placa, c.dec_combustible,
+    ISNULL(STUFF((
+        select ', ' + i.descripcion
+        from Items i where i.ComprobanteId = c.id
+        for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
+    c.total  as total, u.nombre as usuario, c.url,
+    c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto
+`;
+const FROM_COMPROBANTES = `
+    from Comprobantes c
+    inner join Receptores r on c.ReceptorId = r.id
+    inner join Usuarios u on c.UsuarioId = u.id
+    left join Islas isla on c.IslaId = isla.id
+    outer apply (
+        select TOP 1 CAST(i.precio_unitario as float) as precio_unitario
+        from Items i
+        where i.ComprobanteId = c.id and i.codigo_producto = c.codigo_combustible
+    ) fp
+`;
+
+export async function obtieneReporteComprobantes({ page, perPage, ...filtros }: IParametrosReporteComprobantes): Promise<IReporteComprobantesResponse> {
+    const where = construyeWhereComprobantes(filtros);
     const db = process.env.DB_DATABASE_AUXILIAR||"";
 
     //Mismo WHERE que la consulta principal pero sin traer columnas de mas: sirve para
@@ -203,23 +233,8 @@ export async function obtieneReporteComprobantes({ boletas, factura, notasCredit
     //del codigo (getGastos/getDepositos) y porque el server es SQL Server 2012.
     const query = `
         select * from (
-            select c.id as id, numeracion_comprobante as comprobante, c.fecha_hora as fecha, fecha_abastecimiento as fechahora, r.numero_documento, r.razon_social as receptor, c.placa, c.dec_combustible,
-            ISNULL(STUFF((
-                select ', ' + i.descripcion
-                from Items i where i.ComprobanteId = c.id
-                for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
-            c.total  as total, u.nombre as usuario, c.url,
-            c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto,
-            ROW_NUMBER() OVER (ORDER BY c.id DESC) AS RowNum
-            from Comprobantes c
-            inner join Receptores r on c.ReceptorId = r.id
-            inner join Usuarios u on c.UsuarioId = u.id
-            left join Islas isla on c.IslaId = isla.id
-            outer apply (
-                select TOP 1 CAST(i.precio_unitario as float) as precio_unitario
-                from Items i
-                where i.ComprobanteId = c.id and i.codigo_producto = c.codigo_combustible
-            ) fp
+            select ${SELECT_COMPROBANTES}, ROW_NUMBER() OVER (ORDER BY c.id DESC) AS RowNum
+            ${FROM_COMPROBANTES}
             ${where}
         ) Result
         where RowNum between ${start} and ${end}
@@ -228,4 +243,19 @@ export async function obtieneReporteComprobantes({ boletas, factura, notasCredit
     const comprobantes = await executeQuery<IReporteComprobantes[]>(db, query);
 
     return { comprobantes, pageNumbers, totalGeneral };
+}
+
+// Para el Excel: trae TODOS los registros que calzan con el filtro, sin paginar (a
+// diferencia de obtieneReporteComprobantes, que solo trae la pagina que se ve en pantalla).
+export async function obtieneReporteComprobantesExport(filtros: IFiltrosReporteComprobantes): Promise<IReporteComprobantes[]> {
+    const where = construyeWhereComprobantes(filtros);
+    const db = process.env.DB_DATABASE_AUXILIAR||"";
+
+    const query = `
+        select ${SELECT_COMPROBANTES}
+        ${FROM_COMPROBANTES}
+        ${where}
+        order by c.id desc
+        `;
+    return await executeQuery<IReporteComprobantes[]>(db, query);
 }
