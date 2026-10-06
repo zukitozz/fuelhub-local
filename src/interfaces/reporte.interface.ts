@@ -92,4 +92,7 @@ export interface IReporteComprobantes {
     // Precio unitario del producto combustible unicamente: si el comprobante lleva
     // mas de un producto (ej. combustible + market), no se mezcla con los otros precios
     precio_producto: number | null;
+    pago_efectivo: number;
+    pago_tarjeta: number;
+    pago_yape: number;
 }

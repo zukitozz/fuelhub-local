@@ -131,10 +131,36 @@ export const ReporteComprobantes = () => {
                     disabled={exportando || !data || data.comprobantes.length === 0}
                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-all text-sm font-semibold shadow-sm"
                 >
-                    <IoDownloadOutline size={20} />
+                    {exportando ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    ) : (
+                        <IoDownloadOutline size={20} />
+                    )}
                     {exportando ? 'Exportando...' : 'Excel'}
                 </button>
             </div>
+
+            {/* RESUMEN POR TIPO DE PAGO: suma TODOS los registros filtrados, no solo la pagina actual */}
+            {data && data.comprobantes.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <span className="block text-[10px] text-gray-400 font-bold uppercase tracking-wider">Efectivo</span>
+                        <span className="text-lg font-bold text-gray-800">{currencyFormat(data.totalEfectivo)}</span>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <span className="block text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tarjeta</span>
+                        <span className="text-lg font-bold text-gray-800">{currencyFormat(data.totalTarjeta)}</span>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <span className="block text-[10px] text-gray-400 font-bold uppercase tracking-wider">Yape</span>
+                        <span className="text-lg font-bold text-gray-800">{currencyFormat(data.totalYape)}</span>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <span className="block text-[10px] text-blue-500 font-bold uppercase tracking-wider">Total general</span>
+                        <span className="text-lg font-bold text-blue-700">{currencyFormat(data.totalGeneral)}</span>
+                    </div>
+                </div>
+            )}
 
             {/* FILTROS: todo en una sola fila compacta que se envuelve en pantallas chicas */}
             <div className="flex flex-wrap items-end gap-3 pb-4 border-b border-gray-200">

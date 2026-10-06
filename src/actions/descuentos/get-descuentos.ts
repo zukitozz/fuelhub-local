@@ -74,7 +74,7 @@ export async function getDescuentosByNumeroDocumento(numeroDocumento: string): P
     try {
         const descuentos = await executeQuery<IDescuento[]>(
             process.env.DB_DATABASE_AUXILIAR||"",
-            `SELECT id,codigo_producto,numero_documento,monto_descuento,tipo,fecha,estado FROM Descuentos  WHERE numero_documento = '${numeroDocumento}'`
+            `SELECT id,codigo_producto,numero_documento,monto_descuento,tipo,fecha,estado FROM Descuentos WHERE numero_documento = '${numeroDocumento}' AND estado = 1`
         );
         return descuentos as IDescuento[];
     } catch (error) {
