@@ -85,7 +85,7 @@ export const GastosForm = ({ gasto }: Props) => {
         const { status, message } = await saveGasto(gasto);
 
         if(status){
-            notify({ message: isNew ? "Depósito registrado" : "Depósito actualizado" });
+            notify({ message: isNew ? "Gasto registrado" : "Gasto actualizado" });
             router.replace('/gastos');
         } else {
             notify({ message: message || "Error al guardar", type: "error" });

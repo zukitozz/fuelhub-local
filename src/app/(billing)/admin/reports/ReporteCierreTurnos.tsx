@@ -16,7 +16,7 @@ export const ReporteCierreTurnos = () => {
     const [date, setDate] = useState<string>(toLocaleOnlyDate(new Date()));
 
     const { data, isValidating, isLoading, mutate } = useSWR(
-        `${process.env.NEXT_PUBLIC_URL}/api-cierres`, 
+        `${process.env.NEXT_PUBLIC_URL}/api-cierre-turnos-usuarios`,
         () => fetcher(date)
     );
     // Cálculos de totales optimizados

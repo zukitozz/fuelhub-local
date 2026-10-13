@@ -13,6 +13,7 @@ export interface IProduct {
     img: string;
     tipo: string;
     codigosBarras?: ICodigoBarras[]; // Agregamos la propiedad opcional codigosBarras
+    es_pistola?: boolean; // true: combustible despachado por pistola, su stock es el tanque (no se gestiona por Compras)
 }
 export interface IFuelProduct {
     id: number;

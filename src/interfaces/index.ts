@@ -2,6 +2,7 @@ export * from './abastecimiento.interface';
 export * from './billing.interface';
 export * from './cierreturno.interface';
 export * from './comprobante.interface';
+export * from './compra.interface';
 export * from './descuento.interface';
 export * from './order.interface';
 export * from './product.interface';

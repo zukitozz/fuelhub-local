@@ -55,7 +55,7 @@ export const ReporteComprobantes = () => {
     const [page, setPage] = useState(1);
 
     const { data, isValidating, isLoading, mutate } = useSWR(
-        `${process.env.NEXT_PUBLIC_URL}/api-cierres`,
+        `${process.env.NEXT_PUBLIC_URL}/api-reporte-comprobantes`,
         () => fetcher(
             comprobantes.boletas,
             comprobantes.facturas,
