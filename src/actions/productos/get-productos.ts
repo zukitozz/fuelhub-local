@@ -18,9 +18,11 @@ export async function getProductos(page: number, perPage: number, keyword?: stri
     }
 
     const query = `select * from (
-                SELECT 
-                    id,nombre,descripcion,imagenes,stock,codigo,medida,precio,valor,estado,color,img, tipo, ROW_NUMBER() OVER (ORDER BY id) AS RowNum 
-                    FROM Productos WHERE estado = 1 
+                SELECT
+                    id,nombre,descripcion,imagenes,stock,codigo,medida,precio,valor,estado,color,img, tipo,
+                    CAST(CASE WHEN TRY_CAST(codigo AS INT) IN (SELECT DISTINCT TRY_CAST(codigo_producto AS INT) FROM Pistolas) THEN 1 ELSE 0 END AS BIT) AS es_pistola,
+                    ROW_NUMBER() OVER (ORDER BY id) AS RowNum
+                    FROM Productos WHERE estado = 1
                 ${innerFilter}
                 ) as Result WHERE RowNum BETWEEN ${start} AND ${end} ;`;
 
@@ -53,24 +55,27 @@ export async function getProductos(page: number, perPage: number, keyword?: stri
     }
 }
 
-export async function getProducto(id: number): Promise<IProduct> {
+export async function getProducto(id: number): Promise<IProduct|undefined> {
     try {
      const productos = await executeQuery<IProduct[]>(
-        process.env.DB_DATABASE_AUXILIAR||"", 
+        process.env.DB_DATABASE_AUXILIAR||"",
         `
-        SELECT 
-            id,nombre,descripcion,imagenes,stock,codigo,medida,precio,valor,estado,color,img, tipo 
-        FROM Productos 
-        WHERE 
+        SELECT
+            id,nombre,descripcion,imagenes,stock,codigo,medida,precio,valor,estado,color,img, tipo
+        FROM Productos
+        WHERE
             id = ${id}`
     );
 
      if (!productos || productos.length === 0) {
-        throw new Error(`Producto with id ${id} not found`);
+        //id=0 (producto nuevo desde el boton "Nuevo") no existe en la tabla: la pagina ya
+        //cae al formulario vacio (initialProductForm) cuando esto devuelve undefined, igual
+        //que getGasto/getDeposito para sus propios formularios de alta.
+        return undefined;
     }
     const producto = productos[0];
     const detalle = await executeQuery<ICodigoBarras[]>(
-        process.env.DB_DATABASE_AUXILIAR||"", 
+        process.env.DB_DATABASE_AUXILIAR||"",
         `
             select id,ProductoId,codigo_barras,estado from CodigosBarras where ProductoId = ${producto.id};
         `

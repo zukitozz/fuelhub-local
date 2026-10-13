@@ -1,4 +1,4 @@
-import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, IDbResponse, IEditarCierreTurno, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
+import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, ICompraForm, IDbResponse, IEditarCierreTurno, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
 import sql, { ConnectionPool, ISqlTypeFactoryWithLength, ISqlTypeFactoryWithNoParams, Transaction } from 'mssql';
 import { Constants } from './constants';
 import { Session } from 'next-auth';
@@ -234,6 +234,11 @@ import { toLocaleStorage } from './formats';
                         ); SELECT SCOPE_IDENTITY() AS id;`
                     const result = await sqlRequest.query(query_insert);
                     const comprobanteId = result.recordset[0]?.id;
+                    //Codigos de los combustibles despachados por pistola: su stock es el tanque,
+                    //no se gestiona por Compras ni se descuenta aqui.
+                    const sqlPistolasRequest = new sql.Request(transaction);
+                    const codigosPistola = await sqlPistolasRequest.query(`SELECT DISTINCT TRY_CAST(codigo_producto AS INT) as codigo FROM Pistolas`);
+                    const codigosPistolaSet = new Set(codigosPistola.recordset.map(r => String(r.codigo)));
                     //Insertar items
                     for (const item of comprobante.items) {
                         const itemRequest = new sql.Request(transaction);
@@ -258,7 +263,15 @@ import { toLocaleStorage } from './formats';
                             ) VALUES (@ComprobanteId, @cantidad, @valor_unitario, @precio_unitario, @igv, @descripcion,
                                 @codigo_producto, @medida, @valor_venta, @precio_venta, @valor, @precio, @igv_venta, @codigo, @cantidad_venta
                             );`);
-                    }   
+                        //Descontar stock de productos de tienda (no gestiona el stock de los
+                        //combustibles despachados por pistola, su inventario real es el tanque)
+                        if (!codigosPistolaSet.has(String(Number(item.codigo_producto)))) {
+                            const stockRequest = new sql.Request(transaction);
+                            stockRequest.input('codigo_producto', sql.NVarChar, item.codigo_producto);
+                            stockRequest.input('cantidad_venta', sql.Float, item.cantidad_venta);
+                            await stockRequest.query(`UPDATE Productos SET stock = stock - @cantidad_venta WHERE codigo = @codigo_producto`);
+                        }
+                    }
                     //Actualizar notas relacionadas
                     if(comprobante.notas && comprobante.notas.length > 0){
 
@@ -804,6 +817,59 @@ export async function saveSerieTransaction({ id, codigo_proposito, tipo_comproba
         return {
             success: false,
             message: `Ocurrió un error al guardar la serie | ${error instanceof Error ? error.message : JSON.stringify(error)}`
+        };
+    }
+}
+
+export async function saveCompraTransaction(compra: ICompraForm): Promise<IDbResponse> {
+    config.database = process.env.DB_DATABASE_AUXILIAR || "";
+    const pool: ConnectionPool = await sql.connect(config);
+    const transaction: Transaction = new sql.Transaction(pool);
+    try {
+        await transaction.begin();
+
+        const total = compra.lineas.reduce((acc, linea) => acc + (linea.cantidad * linea.costo_unitario), 0);
+        const proveedorEscapado = compra.proveedor.replace(/'/g, "''");
+        const numeroComprobanteEscapado = (compra.numero_comprobante || '').replace(/'/g, "''");
+
+        const sqlRequest = new sql.Request(transaction);
+        sqlRequest.input('fecha', sql.NVarChar, compra.fecha);
+        sqlRequest.input('numero_comprobante', sql.NVarChar, numeroComprobanteEscapado);
+        sqlRequest.input('proveedor', sql.NVarChar, proveedorEscapado);
+        sqlRequest.input('total', sql.Float, total);
+        sqlRequest.input('UsuarioId', sql.Int, compra.UsuarioId);
+        sqlRequest.input('fecha_registro', sql.NVarChar, toLocaleStorage(new Date()));
+        const result = await sqlRequest.query(`INSERT INTO Compras (fecha, numero_comprobante, proveedor, total, UsuarioId, fecha_registro)
+            OUTPUT INSERTED.id
+            VALUES (@fecha, @numero_comprobante, @proveedor, @total, @UsuarioId, @fecha_registro)`);
+        const compraId = result.recordset[0]?.id;
+
+        for (const linea of compra.lineas) {
+            const subtotal = linea.cantidad * linea.costo_unitario;
+            const detalleRequest = new sql.Request(transaction);
+            detalleRequest.input('CompraId', sql.Int, compraId);
+            detalleRequest.input('ProductoId', sql.Int, linea.ProductoId);
+            detalleRequest.input('cantidad', sql.Float, linea.cantidad);
+            detalleRequest.input('costo_unitario', sql.Float, linea.costo_unitario);
+            detalleRequest.input('subtotal', sql.Float, subtotal);
+            await detalleRequest.query(`INSERT INTO ComprasDetalle (CompraId, ProductoId, cantidad, costo_unitario, subtotal)
+                VALUES (@CompraId, @ProductoId, @cantidad, @costo_unitario, @subtotal)`);
+
+            const stockRequest = new sql.Request(transaction);
+            stockRequest.input('cantidad', sql.Float, linea.cantidad);
+            stockRequest.input('ProductoId', sql.Int, linea.ProductoId);
+            await stockRequest.query(`UPDATE Productos SET stock = stock + @cantidad WHERE id = @ProductoId`);
+        }
+
+        await transaction.commit();
+        return { success: true, message: 'Compra registrada correctamente' };
+    } catch (error) {
+        console.error("Error executing transaction: saveCompraTransaction");
+        console.error(error);
+        try { await transaction.rollback(); } catch (e) { console.error("Error en rollback", e); }
+        return {
+            success: false,
+            message: `Ocurrió un error al registrar la compra | ${error instanceof Error ? error.message : JSON.stringify(error)}`
         };
     }
 }

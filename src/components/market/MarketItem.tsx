@@ -24,7 +24,12 @@ export const MarketItem = ({ producto }: Props) => {
                 </p>
                 <p className="text-sm text-gray-700 mb-1">
                 Medida: {producto.medida}
-                </p>                
+                </p>
+                {!producto.es_pistola && (
+                <p className="text-sm text-gray-700 mb-1">
+                Stock: {producto.stock} {producto.medida}
+                </p>
+                )}
                 {/* <p className="text-sm text-gray-700 mb-4">
                 Cantidad: {abastecimiento.volTotal} {abastecimiento.medida}
                 </p>     */}

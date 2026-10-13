@@ -17,7 +17,7 @@ export const ReporteCierreTurnosProductos = () => {
     const [isChecked, setIsChecked] = useState<boolean>(false);
 
     const { data, isValidating, isLoading, mutate } = useSWR<IReporteCierreTurnoProductos[]>(
-        `${process.env.NEXT_PUBLIC_URL}/api-cierres`, 
+        `${process.env.NEXT_PUBLIC_URL}/api-cierre-turnos-productos`,
         () => fetcher(date, isChecked)
     );
     

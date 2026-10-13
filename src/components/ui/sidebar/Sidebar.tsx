@@ -19,6 +19,7 @@ import {
   IoTicketOutline,
   IoListOutline,
   IoTimeOutline,
+  IoCartOutline,
 } from "react-icons/io5";
 import { useUIStore } from "@/store";
 import { logout } from "@/actions";
@@ -141,6 +142,15 @@ export const Sidebar = () => {
             >
               <IoShirtOutline size={30} />
               <span className="ml-3 text-xl">Productos</span>
+            </Link>
+
+            <Link
+              href="/admin/compras"
+              onClick={() => closeMenu()}
+              className="flex items-center mt-5 p-2 hover:bg-gray-100 rounded transition-all"
+            >
+              <IoCartOutline size={30} />
+              <span className="ml-3 text-xl">Compras</span>
             </Link>
 
             <Link

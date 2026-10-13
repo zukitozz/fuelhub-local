@@ -51,7 +51,7 @@ export const LoginForm = () => {
         aria-live="polite"
         aria-atomic="true"
       >
-        {state === "UnknownError" && (
+        {state && state !== "Success" && (
           <div className="flex flex-row mb-2">
             <IoInformationOutline className="h-5 w-5 text-red-500" />
             <p className="text-sm text-red-500">

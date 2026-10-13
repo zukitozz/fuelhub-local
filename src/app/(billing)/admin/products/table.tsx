@@ -91,6 +91,12 @@ export const ProductTable = ({ page, perPage, keyword }: TableProps) => {
                     scope="col"
                     className="text-sm font-medium text-gray-900 px-6 py-4 text-left"
                 >
+                    Stock
+                </th>
+                <th
+                    scope="col"
+                    className="text-sm font-medium text-gray-900 px-6 py-4 text-left"
+                >
                     Modificar
                 </th>
                 </tr>
@@ -115,6 +121,9 @@ export const ProductTable = ({ page, perPage, keyword }: TableProps) => {
                     </td>
                     <td className="text-sm text-gray-900 font-light px-6 ">
                         {currencyFormat(item.precio)}
+                    </td>
+                    <td className="text-sm text-gray-900 font-light px-6 py-4 whitespace-nowrap">
+                        {item.es_pistola ? '-' : item.stock}
                     </td>
                     <td className="text-sm text-gray-900 font-light px-6 ">
                         <Link className="btn-primary px-5 py-2 mt-3"  href={ `/admin/products/${ item.id }` }>
