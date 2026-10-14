@@ -52,7 +52,7 @@ export const Sidebar = () => {
 
       {/* Sidemenu */}
       <nav
-        className={`fixed p-5 right-0 top-0 w-[500px] h-screen bg-white z-20 shadow-2xl transform transition-all duration-300 ${!isSideMenuOpen ? 'translate-x-full' : 'translate-x-0'}`}
+        className={`fixed p-5 right-0 top-0 w-[500px] h-screen overflow-y-auto bg-white z-20 shadow-2xl transform transition-all duration-300 ${!isSideMenuOpen ? 'translate-x-full' : 'translate-x-0'}`}
       >
         <IoCloseOutline
           size={50}
