@@ -27,14 +27,23 @@ export const LoginForm = () => {
       <input
         className="px-5 py-2 border bg-gray-200 rounded mb-5"
         type="text"
+        id="usuario"
         name="usuario"
+        autoComplete="off"
       />
 
       <label htmlFor="password">Contraseña</label>
       <input
         className="px-5 py-2 border bg-gray-200 rounded mb-5"
-        type="password"
+        // Se usa type="text" enmascarado por CSS: el navegador no detecta un campo de
+        // contraseña y no ofrece guardarla (autocomplete="off" lo ignoran Chrome/Edge)
+        type="text"
+        id="password"
         name="password"
+        autoComplete="off"
+        data-lpignore="true"
+        data-1p-ignore
+        style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
       />
 
       <label htmlFor="turno">Turno</label>
