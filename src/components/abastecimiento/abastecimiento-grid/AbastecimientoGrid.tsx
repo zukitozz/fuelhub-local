@@ -8,6 +8,17 @@ import { getAbastecimientos, saveBilling, validatePrevBilling } from "@/actions"
 import { buildComprobanteFromAbastecimiento, Constants, notify } from "@/utils";
 import { useOrderAbastecimientoStore } from "@/store";
 
+// NEXT_PUBLIC_ENABLE_AUTOBOLETEO: 0 = desactivado, 1 = por manguera (boletea el anterior
+// al llegar la siguiente venta de la pistola), 2 = temporizado (a los N minutos)
+const MODOS_AUTOBOLETEO = { DESACTIVADO: 0, POR_MANGUERA: 1, TEMPORIZADO: 2 } as const;
+const MODO_AUTOBOLETEO = (() => {
+    const valor = process.env.NEXT_PUBLIC_ENABLE_AUTOBOLETEO;
+    if (valor === 'true') return MODOS_AUTOBOLETEO.POR_MANGUERA; // compatibilidad con el valor antiguo
+    const modo = Number(valor);
+    return modo === 1 || modo === 2 ? modo : MODOS_AUTOBOLETEO.DESACTIVADO;
+})();
+const MINUTOS_AUTOBOLETEO_TEMPORIZADO = 10;
+
 interface Props {
     pistolas: number[];
 }
@@ -44,12 +55,23 @@ export const AbastecimientoGrid = ({ pistolas }: Props) => {
             return;
         }
 
-        const isAutoboleteoEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTOBOLETEO === 'true';
-
-        if (!isAutoboleteoEnabled) {
+        if (MODO_AUTOBOLETEO === MODOS_AUTOBOLETEO.DESACTIVADO) {
             setFilteredAbastecimientos(data);
             return; 
-        }        
+        }
+
+        // Modo 2: se boletea con clientes varios cada abastecimiento pendiente que lleva
+        // MINUTOS_AUTOBOLETEO_TEMPORIZADO o más desde que apareció (tiempo calculado en BD)
+        if (MODO_AUTOBOLETEO === MODOS_AUTOBOLETEO.TEMPORIZADO) {
+            setFilteredAbastecimientos(data);
+            const vencidos = data.filter(a =>
+                a.estado === 0 &&
+                (a.minutosTranscurridos ?? 0) >= MINUTOS_AUTOBOLETEO_TEMPORIZADO &&
+                !idsProcesando.current.has(a.idAbastecimiento)
+            );
+            procesarSecuencial(vencidos);
+            return;
+        }
 
         // 1. Obtener el abastecimiento más RECIENTE de cada pistola para la UI
         const mapaMangueras: { [pistolaId: number]: IAbastecimiento } = {};
@@ -68,44 +90,41 @@ export const AbastecimientoGrid = ({ pistolas }: Props) => {
 
         // 2. Lógica de AUTOBOLETEO condicionada por la Variable de Entorno
 
-        const procesarAutoboleteoAcumulado = async () => {
-            // Filtrar primero los que realmente califican para autoboleteo
-            const pendientesDeBoleteo = data.filter(abastecimiento => {
-                const pId = abastecimiento.pistola;
-                const ultimoAbastecimientoUI = mapaMangueras[pId];
-                
-                return (
-                    abastecimiento.estado === 0 && 
-                    abastecimiento.idAbastecimiento !== ultimoAbastecimientoUI?.idAbastecimiento &&
-                    !idsProcesando.current.has(abastecimiento.idAbastecimiento)
-                );
-            });
+        // Modo 1: se boletea todo lo que no sea el último abastecimiento de cada pistola
+        const pendientesDeBoleteo = data.filter(abastecimiento => {
+            const ultimoAbastecimientoUI = mapaMangueras[abastecimiento.pistola];
+            return (
+                abastecimiento.estado === 0 && 
+                abastecimiento.idAbastecimiento !== ultimoAbastecimientoUI?.idAbastecimiento &&
+                !idsProcesando.current.has(abastecimiento.idAbastecimiento)
+            );
+        });
 
-            // Procesar uno por uno secuencialmente
-            for (const abastecimiento of pendientesDeBoleteo) {
-                const idABoletear = abastecimiento.idAbastecimiento;
-
-                // Doble check por si acaso mutó en el intermedio del bucle
-                if (idsProcesando.current.has(idABoletear)) continue;
-
-                // Bloquear INMEDIATAMENTE
-                idsProcesando.current.add(idABoletear);
-
-                try {
-                    await ejecutarAutoboleteo(abastecimiento);
-                } catch (error) {
-                    console.error(`Fallo temporal en ID ${idABoletear}:`, error);
-                    // NOTA: Si falló, lo removemos para que el siguiente ciclo de SWR lo vuelva a intentar
-                    idsProcesando.current.delete(idABoletear);
-                }
-                // IMPORTANTE: No borres el ID de "idsProcesando" en el `finally` inmediatamente si fue exitoso.
-                // Déjalo ahí guardado para que los siguientes renders/polling de SWR (de los próximos segundos) 
-                // no lo vuelvan a intentar mientras la base de datos se actualiza.
-            }
-        };
-
-        procesarAutoboleteoAcumulado();
+        procesarSecuencial(pendientesDeBoleteo);
     }, [data]);
+
+    // Procesar uno por uno secuencialmente
+    const procesarSecuencial = async (pendientesDeBoleteo: IAbastecimiento[]) => {
+        for (const abastecimiento of pendientesDeBoleteo) {
+            const idABoletear = abastecimiento.idAbastecimiento;
+
+            // Doble check por si acaso mutó en el intermedio del bucle
+            if (idsProcesando.current.has(idABoletear)) continue;
+
+            // Bloquear INMEDIATAMENTE
+            idsProcesando.current.add(idABoletear);
+
+            try {
+                await ejecutarAutoboleteo(abastecimiento);
+            } catch (error) {
+                console.error(`Fallo temporal en ID ${idABoletear}:`, error);
+                // Si falló, lo removemos para que el siguiente ciclo de SWR lo vuelva a intentar
+                idsProcesando.current.delete(idABoletear);
+            }
+            // Si fue exitoso el ID queda en "idsProcesando" para que el polling de SWR
+            // no lo reintente mientras la base de datos se actualiza.
+        }
+    };
 
     const ejecutarAutoboleteo = async (abastecimientoViejo: IAbastecimiento) => {
         const usuarioId = +(session?.user.id || 0);

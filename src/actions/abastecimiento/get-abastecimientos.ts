@@ -38,6 +38,7 @@ export async function getAbastecimientos(pistolas: number[], estado?: EstadosAba
                 END AS volTotal,
                 a.precioUnitario,
                 a.tiempo, a.fechaHora, a.totInicio, a.totFinal, a.IDoperador, a.IDcliente, a.volTanque, a.estado,
+                DATEDIFF(minute, a.fechaHora, GETDATE()) AS minutosTranscurridos,
                 p.nombre, p.color, p.medida 
             FROM 
                 DEMOSQL.dbo.Abastecimientos a 

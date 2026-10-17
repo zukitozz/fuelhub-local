@@ -9,6 +9,7 @@ export interface IAbastecimiento {
   precioUnitario: number;
   tiempo: number;
   fechaHora: string;
+  minutosTranscurridos?: number;
   totInicio: number;
   totFinal: number;
   IDoperador: string;
