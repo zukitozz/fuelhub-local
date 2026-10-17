@@ -62,7 +62,8 @@ export const buildComprobanteFromAbastecimiento = ({
     cantidad_venta: cantidad
   };
 
-  const fecha_abastecimiento = abastecimiento.fechaHora ? new Date(abastecimiento.fechaHora) : new Date();
+  //null si el despacho no trae hora: el modelo usa la hora local en ese caso
+  const fecha_abastecimiento = abastecimiento.fechaHora ? new Date(abastecimiento.fechaHora) : null;
   const tiempo_abastecimiento = abastecimiento.tiempo || 0;
   const ruc = process.env.NEXT_PUBLIC_RUC || "";
 

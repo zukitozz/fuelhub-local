@@ -190,7 +190,8 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
             items.push(item);
         }
         const order_abastecimiento = orders.find(item => item.id_abastecimiento !== null);
-        const fecha_abastecimiento = order_abastecimiento?.fecha_abastecimiento ? new Date(order_abastecimiento.fecha_abastecimiento) : new Date();
+        //null cuando la venta no viene de un despacho (tienda): el modelo le pone la hora local
+        const fecha_abastecimiento = order_abastecimiento?.fecha_abastecimiento ? new Date(order_abastecimiento.fecha_abastecimiento) : null;
         const tiempo_abastecimiento = order_abastecimiento?.tiempo_abastecimiento || 0;
         const id_abastecimiento = order_abastecimiento?.id_abastecimiento || null;
         const cantidad = order_abastecimiento?.cantidad || 0;

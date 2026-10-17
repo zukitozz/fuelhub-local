@@ -95,7 +95,15 @@ export class Comprobante implements IComprobanteAdmin{
         this.fin_medidor = fin_medidor;
         this.notas = notas;
         this.dec_combustible = dec_combustible;
-        this.fecha_abastecimiento = moment(fecha_abastecimiento).format("YYYY-MM-DD HH:mm:ss");
+        //El controlador informa la hora local del despacho, pero el driver de mssql la lee
+        //como si fuera UTC (useUTC viene activado por defecto), asi que se formatea en UTC
+        //para guardar la misma hora de pared que marca el surtidor. Antes se usaba moment()
+        //local y la columna quedaba 5 horas atrasada.
+        //Las ventas sin despacho (tienda) llegan con null: ahi la hora local de ahora si es
+        //la correcta.
+        this.fecha_abastecimiento = fecha_abastecimiento
+            ? moment.utc(fecha_abastecimiento).format("YYYY-MM-DD HH:mm:ss")
+            : toLocaleStorage(new Date());
         this.tiempo_abastecimiento = tiempo_abastecimiento;
         this.volumen_tanque = volumen_tanque;
         this.comentario = comentario;
