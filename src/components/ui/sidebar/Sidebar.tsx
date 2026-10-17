@@ -1,6 +1,8 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   IoNutritionOutline,
@@ -23,6 +25,8 @@ import {
 } from "react-icons/io5";
 import { useUIStore } from "@/store";
 import { logout } from "@/actions";
+import { countVentasPendientes } from "@/actions/cierreturno";
+import { notify } from "@/utils";
 
 //import { useUIStore } from "@/store";
 //import { logout } from "@/actions";
@@ -34,7 +38,30 @@ export const Sidebar = () => {
   const { data: session } = useSession();
   const isAuthenticated = !!session?.user;
   const isAdmin = session?.user.rol === "ADMIN_ROLE";
-  
+  const router = useRouter();
+
+  // No se puede cerrar el turno con ventas de la isla sin boletear
+  const handleCierreTurno = async (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    try {
+      const pendientes = await countVentasPendientes();
+      if (pendientes > 0) {
+        closeMenu();
+        notify({
+          message: `Hay ${pendientes} venta(s) pendientes de boletear en la isla. Boletee todas las ventas antes de cerrar el turno.`,
+          type: "error",
+        });
+        return;
+      }
+    } catch (error) {
+      console.error("Error validando ventas pendientes:", error);
+      notify({ message: "No se pudo validar las ventas pendientes, intente nuevamente.", type: "error" });
+      return;
+    }
+    closeMenu();
+    router.push("/cierreturno");
+  };
+
   return (
     <div>
       {/* Background black */}
@@ -84,9 +111,9 @@ export const Sidebar = () => {
             </Link>
             { !isAdmin && (
               <>
-                <Link 
+                <Link
                   href="/cierreturno"
-                  onClick={() => closeMenu()}
+                  onClick={handleCierreTurno}
                   className="flex items-center mt-5 p-2 hover:bg-gray-100 rounded transition-all"            
                 >
                   <IoSaveOutline size={30} />
