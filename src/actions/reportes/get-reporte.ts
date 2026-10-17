@@ -189,8 +189,25 @@ const SELECT_COMPROBANTES = `
         from Items i where i.ComprobanteId = c.id
         for xml path(''), type).value('.', 'nvarchar(max)'), 1, 2, ''), '') as productos,
     c.total  as total, u.nombre as usuario, c.url,
-    c.volumen as cantidad, isla.nombre as isla, fp.precio_unitario as precio_producto,
-    ISNULL(c.pago_efectivo, 0) as pago_efectivo, ISNULL(c.pago_tarjeta, 0) as pago_tarjeta, ISNULL(c.pago_yape, 0) as pago_yape
+    --En ventas de combustible la cantidad y el precio salen del despacho (volumen de la
+    --cabecera y el item que calza con codigo_combustible). En ventas sin combustible
+    --(market) esos campos vienen vacios, asi que se toman de los items: la cantidad es la
+    --suma y el precio solo se muestra si todos los items valen lo mismo, para no inventar
+    --un promedio cuando el comprobante lleva productos distintos.
+    CASE when c.volumen > 0 then c.volumen else ISNULL(it.cantidad, 0) END as cantidad,
+    isla.nombre as isla,
+    ISNULL(fp.precio_unitario, CASE when it.precio_min = it.precio_max then it.precio_min END) as precio_producto,
+    ISNULL(c.pago_efectivo, 0) as pago_efectivo, ISNULL(c.pago_tarjeta, 0) as pago_tarjeta, ISNULL(c.pago_yape, 0) as pago_yape,
+    c.pistola,
+    --Las fechas son datetimeoffset guardadas como hora local con offset +00:00: se
+    --convierten a texto en el SQL para que el Excel muestre la misma hora que la pantalla
+    --y no la reinterprete con la zona horaria del navegador.
+    --El surtidor informa la hora en que termino el despacho (fecha_abastecimiento) y
+    --cuantos segundos duro (tiempo_abastecimiento), asi que el inicio se calcula restando.
+    CONVERT(varchar(19), DATEADD(second, -ISNULL(c.tiempo_abastecimiento, 0), c.fecha_abastecimiento), 120) as inicio_despacho,
+    CONVERT(varchar(19), c.fecha_abastecimiento, 120) as fin_despacho,
+    CONVERT(varchar(8), c.fecha_hora, 108) as hora_emision,
+    c.inicio_medidor, c.fin_medidor
 `;
 const FROM_COMPROBANTES = `
     from Comprobantes c
@@ -202,6 +219,13 @@ const FROM_COMPROBANTES = `
         from Items i
         where i.ComprobanteId = c.id and i.codigo_producto = c.codigo_combustible
     ) fp
+    outer apply (
+        select SUM(CAST(i.cantidad_venta as float)) as cantidad,
+               MIN(CAST(i.precio as float)) as precio_min,
+               MAX(CAST(i.precio as float)) as precio_max
+        from Items i
+        where i.ComprobanteId = c.id
+    ) it
 `;
 
 export async function obtieneReporteComprobantes({ page, perPage, ...filtros }: IParametrosReporteComprobantes): Promise<IReporteComprobantesResponse> {

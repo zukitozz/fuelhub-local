@@ -85,6 +85,9 @@ export interface IReporteComprobantes {
     total: number;
     // Productos del comprobante, separados por coma cuando lleva mas de uno
     productos: string;
+    numero_documento: string;
+    placa: string | null;
+    dec_combustible: string | null;
     // Cantidad e isla del producto combustible del comprobante (no de los demas
     // productos que pueda llevar, ej. market)
     cantidad: number;
@@ -95,4 +98,12 @@ export interface IReporteComprobantes {
     pago_efectivo: number;
     pago_tarjeta: number;
     pago_yape: number;
+    // Datos del despacho en el surtidor: hora de inicio y fin, lectura del totalizador y
+    // pistola. Llegan como texto ya formateado desde el SQL.
+    pistola: number | null;
+    inicio_despacho: string | null;
+    fin_despacho: string | null;
+    hora_emision: string | null;
+    inicio_medidor: number | null;
+    fin_medidor: number | null;
 }

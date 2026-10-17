@@ -91,13 +91,37 @@ export const ReporteComprobantes = () => {
                 ruc,
             });
             if (todos.length === 0) return;
-            //La url solo sirve para el boton PDF de la pantalla: en el Excel es una columna
-            //larga que no aporta nada
+            //El orden de las claves es el orden de las columnas del Excel. Quedan fuera:
+            //url (solo sirve para el boton PDF de la pantalla), fechahora (es el despacho,
+            //pero como Date cruda xlsx la corre con la zona horaria del navegador: ese dato
+            //ya viene bien en inicio_despacho/fin_despacho) y hora_emision (fecha_emision
+            //ya trae fecha y hora).
             //fecha_hora se guarda como string de hora local con offset +00:00 (no es UTC real),
             //por eso se lee con toLocaleShow (misma funcion que usa la tabla en pantalla) y no
-            //con un Date crudo: si se deja como Date, xlsx lo reinterpreta con la zona horaria
-            //del navegador y la hora del Excel sale distinta a la que se ve en pantalla
-            const filas = todos.map(({ url, ...resto }) => ({ ...resto, fecha: toLocaleShow(resto.fecha) }));
+            //con un Date crudo.
+            const filas = todos.map(item => ({
+                id: item.id,
+                comprobante: item.comprobante,
+                inicio_despacho: item.inicio_despacho,
+                fin_despacho: item.fin_despacho,
+                fecha_emision: toLocaleShow(item.fecha),
+                numero_documento: item.numero_documento,
+                receptor: item.receptor,
+                placa: item.placa,
+                dec_combustible: item.dec_combustible,
+                productos: item.productos,
+                total: item.total,
+                usuario: item.usuario,
+                inicio_medidor: item.inicio_medidor,
+                fin_medidor: item.fin_medidor,
+                cantidad: item.cantidad,
+                isla: item.isla,
+                pistola: item.pistola,
+                precio_producto: item.precio_producto,
+                pago_efectivo: item.pago_efectivo,
+                pago_tarjeta: item.pago_tarjeta,
+                pago_yape: item.pago_yape,
+            }));
             const worksheet = XLSX.utils.json_to_sheet(filas);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Comprobantes");
