@@ -692,6 +692,9 @@ import { toLocaleStorage } from './formats';
         sqlRequest.input('nombre', sql.NVarChar, nombre);
         sqlRequest.input('descripcion', sql.NVarChar, descripcion);
         sqlRequest.input('precio', sql.Float, precio);
+        // El valor (precio sin IGV) siempre se deriva del precio para que no queden desfasados
+        const taxRate = Number.parseFloat(process.env.NEXT_PUBLIC_TAX || "0.18");
+        sqlRequest.input('valor', sql.Float, Math.round((precio / (1 + taxRate)) * 10000000000) / 10000000000);
         // Si el img viene undefined o null, asegúrate de enviar null a la DB
         sqlRequest.input('img', sql.NVarChar, img || null); 
         sqlRequest.input('tipo', sql.NVarChar, tipo);
@@ -699,13 +702,13 @@ import { toLocaleStorage } from './formats';
         if (id && id !== 0) { // Validamos que exista un ID real de actualización
             sqlRequest.input('id', sql.Int, id); // Cambiado a sql.Int (los IDs suelen ser enteros, no Float)
             productoId = id;
-            query = `UPDATE Productos set nombre = @nombre, descripcion = @descripcion, medida = @medida, precio = @precio, img = @img, tipo = @tipo where id = @id`;
+            query = `UPDATE Productos set nombre = @nombre, descripcion = @descripcion, medida = @medida, precio = @precio, valor = @valor, img = @img, tipo = @tipo where id = @id`;
             await sqlRequest.query(query);
         } else {
             // SOLUCIÓN: Agregamos OUTPUT INSERTED.id para poder leer el ID generado
-            query = `INSERT into Productos (nombre, descripcion, medida, precio, img, tipo) 
+            query = `INSERT into Productos (nombre, descripcion, medida, precio, valor, img, tipo) 
                      OUTPUT INSERTED.id 
-                     values (@nombre, @descripcion, @medida, @precio, @img, @tipo)`;
+                     values (@nombre, @descripcion, @medida, @precio, @valor, @img, @tipo)`;
             
             result = await sqlRequest.query(query);
             // Ahora sí el recordset tendrá la propiedad id disponible

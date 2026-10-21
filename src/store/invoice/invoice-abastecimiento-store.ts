@@ -75,12 +75,14 @@ export const useOrderAbastecimientoStore = create<State>()(
                 const { items } = get();
                 const productInOrder = items.some(item => item.codigo_producto === product.codigo);
                 const taxRate = Number.parseFloat(process.env.NEXT_PUBLIC_TAX || "0.18");
+                // El valor se calcula desde el precio: Productos.valor puede estar desfasado
+                const valor = Math.round((product.precio/(1 + taxRate))*10000000000)/10000000000;
                 const productItem: IOrderItem = {
                     cantidad: 1,
                     precio: product.precio,
-                    valor: product.valor,
-                    igv: Math.round((product.valor * taxRate)*100)/100,
-                    valor_unitario: product.valor,
+                    valor,
+                    igv: Math.round((product.precio - valor)*100)/100,
+                    valor_unitario: valor,
                     precio_unitario: product.precio,
                     descripcion: product.nombre,
                     codigo_producto: product.codigo,
