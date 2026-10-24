@@ -74,14 +74,22 @@ import { toLocaleStorage } from './formats';
                         }
                         const sqlNotaCreditoRequest = new sql.Request(transaction);
                         sqlNotaCreditoRequest.input('numeracion_documento_afectado', sql.NVarChar, numeracion_documento_afectado);
+                        //Una NC que el facturador dejo ESPERANDO (la boleta aun no fue aceptada por SUNAT)
+                        //tambien es vigente: se enviara sola, generar otra la duplicaria.
+                        sqlNotaCreditoRequest.input('marcaEsperando', sql.NVarChar, `%${Constants.NC_ESPERANDO_MARCA}%`);
                         const notaPrevia = await sqlNotaCreditoRequest.query(`
-                            SELECT TOP 1 numeracion_comprobante FROM Comprobantes
+                            SELECT TOP 1 numeracion_comprobante,
+                                CASE WHEN errors LIKE @marcaEsperando THEN 1 ELSE 0 END AS esperando
+                            FROM Comprobantes
                             WHERE tipo_comprobante = '07'
                             AND numeracion_documento_afectado = @numeracion_documento_afectado
-                            AND ISNULL(errors, '') = ''
+                            AND (ISNULL(errors, '') = '' OR errors LIKE @marcaEsperando)
                         `);
                         const numeracionPrevia = notaPrevia.recordset[0]?.numeracion_comprobante;
                         if (numeracionPrevia) {
+                            if (notaPrevia.recordset[0].esperando) {
+                                throw new Error(`La nota de crédito ${numeracionPrevia} de ${numeracion_documento_afectado} está en espera: se enviará sola cuando SUNAT acepte la boleta. No hace falta generar otra.`);
+                            }
                             throw new Error(`El comprobante ${numeracion_documento_afectado} ya tiene la nota de crédito ${numeracionPrevia}`);
                         }
                     }
