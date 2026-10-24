@@ -40,6 +40,10 @@ export const Constants = {
         ISLA: 'VENTA_ISLA',
         ADMINISTRADOR: 'VENTA_TOTAL'
     },
+    // El facturador escribe este texto en Comprobantes.errors de una nota de credito que espera
+    // a que la boleta afectada sea aceptada por SUNAT. No es un error. Va precedido de un
+    // timestamp "[AAAA-MM-DD HH:MM:SS] ", por eso se busca con LIKE '%...%' y no por prefijo.
+    NC_ESPERANDO_MARCA: 'ESPERANDO (no es un error):',
     CODIGO_PROPOSITO: {
         INTERNA: 'FACTURAS_BOLETAS_NC_INTERNA',
         ADMIN: 'FACTURAS_BOLETAS_NC_ADMIN',

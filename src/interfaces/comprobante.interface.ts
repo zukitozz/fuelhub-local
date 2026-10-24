@@ -95,6 +95,10 @@ export interface IComprobanteHistorico extends IComprobanteAdmin {
     usuario: string;
     // Indicador (0/1) de si el comprobante tiene el PDF guardado localmente, no el binario en si.
     pdf_bytes?: number;
+    // 1 si este comprobante (una NC) espera a que SUNAT acepte la boleta; su errors es un aviso
+    esperando?: number;
+    // Numeracion de la NC que espera sobre este comprobante, si la hay
+    nc_en_espera?: string | null;
 }
 
 export interface IComprobantePDF {

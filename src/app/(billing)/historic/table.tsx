@@ -94,10 +94,18 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                             <Link href={`/api/comprobante/${item.id}`} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded">PDF</Link>
                         </td>
                         <td className="text-sm text-gray-900 font-light px-3 ">
-                            {item.errors && (
+                            {/* Una NC en espera no es un error: se envia sola cuando SUNAT acepta la boleta */}
+                            {!!item.esperando && (
+                                <span title={item.errors} className="bg-amber-500 text-white font-bold py-1.5 px-2 rounded cursor-help">ESPERANDO</span>
+                            )}
+                            {item.errors && !item.esperando && (
                                 <Link href={"#"} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1.5 px-2 rounded">ERROR</Link>
                             )}
-                            {!!item.enviado && !item.errors && !item.numeracion_documento_afectado && (
+                            {!!item.nc_en_espera && (
+                                <span title={`La nota de crédito ${item.nc_en_espera} está en espera de que SUNAT acepte esta boleta; se enviará sola. No generes otra.`}
+                                    className="bg-amber-100 text-amber-800 font-bold py-1.5 px-2 rounded cursor-help">NC en espera</span>
+                            )}
+                            {!!item.enviado && !item.errors && !item.nc_en_espera && !item.numeracion_documento_afectado && (
                                 <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-2 rounded ml-1">N.Credito</Link>
                             )}
                         </td>
