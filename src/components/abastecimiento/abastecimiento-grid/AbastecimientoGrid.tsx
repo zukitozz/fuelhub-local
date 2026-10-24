@@ -7,6 +7,7 @@ import { AbastecimientoGridItem } from "./AbastecimientoGridItem";
 import { getAbastecimientos, saveBilling, validatePrevBilling } from "@/actions";
 import { buildComprobanteFromAbastecimiento, Constants, notify } from "@/utils";
 import { useOrderAbastecimientoStore } from "@/store";
+import { requiereRevision } from "@/utils/autoboleteo";
 
 // NEXT_PUBLIC_ENABLE_AUTOBOLETEO: 0 = desactivado, 1 = por manguera (boletea el anterior
 // al llegar la siguiente venta de la pistola), 2 = temporizado (a los N minutos)
@@ -18,6 +19,8 @@ const MODO_AUTOBOLETEO = (() => {
     return modo === 1 || modo === 2 ? modo : MODOS_AUTOBOLETEO.DESACTIVADO;
 })();
 const MINUTOS_AUTOBOLETEO_TEMPORIZADO = 10;
+// Ventas de monto alto o negativo no se autobolean: quedan pendientes para revisión manual
+const superaMontoAutoboleteo = (a: IAbastecimiento) => requiereRevision(a.valorTotal);
 
 interface Props {
     pistolas: number[];
@@ -66,6 +69,7 @@ export const AbastecimientoGrid = ({ pistolas }: Props) => {
             setFilteredAbastecimientos(data);
             const vencidos = data.filter(a =>
                 a.estado === 0 &&
+                !superaMontoAutoboleteo(a) &&
                 (a.minutosTranscurridos ?? 0) >= MINUTOS_AUTOBOLETEO_TEMPORIZADO &&
                 !idsProcesando.current.has(a.idAbastecimiento)
             );
@@ -84,7 +88,11 @@ export const AbastecimientoGrid = ({ pistolas }: Props) => {
 
         // NUEVO: Convertir a array y ORDENAR de menor a mayor por ID.
         // Esto garantiza que el ID más alto (más reciente) se ubique al final (a la derecha)
-        const listaOrdenada = Object.values(mapaMangueras).sort((a, b) => a.idAbastecimiento - b.idAbastecimiento);
+        // Las ventas que van a revisión no se boletean solas: se mantienen visibles aunque no
+        // sean la última de su pistola, o quedarían ocultas y sin forma de boletearlas a mano.
+        const ultimos = new Set(Object.values(mapaMangueras).map(a => a.idAbastecimiento));
+        const montosAltos = data.filter(a => !ultimos.has(a.idAbastecimiento) && superaMontoAutoboleteo(a));
+        const listaOrdenada = [...Object.values(mapaMangueras), ...montosAltos].sort((a, b) => a.idAbastecimiento - b.idAbastecimiento);
         
         setFilteredAbastecimientos(listaOrdenada);
 
@@ -95,6 +103,7 @@ export const AbastecimientoGrid = ({ pistolas }: Props) => {
             const ultimoAbastecimientoUI = mapaMangueras[abastecimiento.pistola];
             return (
                 abastecimiento.estado === 0 && 
+                !superaMontoAutoboleteo(abastecimiento) &&
                 abastecimiento.idAbastecimiento !== ultimoAbastecimientoUI?.idAbastecimiento &&
                 !idsProcesando.current.has(abastecimiento.idAbastecimiento)
             );
