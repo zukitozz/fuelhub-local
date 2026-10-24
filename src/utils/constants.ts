@@ -44,6 +44,10 @@ export const Constants = {
     // a que la boleta afectada sea aceptada por SUNAT. No es un error. Va precedido de un
     // timestamp "[AAAA-MM-DD HH:MM:SS] ", por eso se busca con LIKE '%...%' y no por prefijo.
     NC_ESPERANDO_MARCA: 'ESPERANDO (no es un error):',
+    // Catalogo 09 de SUNAT: motivos de emision de la nota de credito
+    MOTIVO_NOTA_CREDITO: {
+        ANULACION: { codigo: '01', descripcion: 'ANULACION DE LA OPERACION' },
+    },
     CODIGO_PROPOSITO: {
         INTERNA: 'FACTURAS_BOLETAS_NC_INTERNA',
         ADMIN: 'FACTURAS_BOLETAS_NC_ADMIN',

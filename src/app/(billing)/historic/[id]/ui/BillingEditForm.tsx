@@ -148,6 +148,8 @@ export const BillingEditForm = ({ billing }: Props) => {
         billing.numeracion_documento_afectado = documentoAfectado.current.numeracion;
         billing.fecha_documento_afectado = toLocaleStorage(documentoAfectado.current.fecha);
         billing.tipo_documento_afectado = documentoAfectado.current.tipo;
+        billing.tipo_nota = Constants.MOTIVO_NOTA_CREDITO.ANULACION.codigo;
+        billing.motivo_documento_afectado = Constants.MOTIVO_NOTA_CREDITO.ANULACION.descripcion;
 
         // Fecha de hoy salvo que la serie activa de NC permita retroactiva y se haya elegido otra
         billing.fecha_emision = formValues.fechaEmision || toLocaleStorage(new Date());
