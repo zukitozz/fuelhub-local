@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { boletaRequiereDni, MENSAJE_BOLETA_SIN_DNI } from "@/utils/autoboleteo";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { getSerieActivaRetroactiva, saveBilling, validatePrevBilling } from "@/actions";
@@ -118,6 +119,11 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
         //emitir facturas a nombre de clientes varios, que SUNAT no acepta.
         if (tipoComprobante === Constants.TIPO_COMPROBANTE.FACTURA && (tipoDocumento !== Constants.TIPO_DOCUMENTO.RUC || numeroDocumento.length !== 11)) {
             notify({ message: 'La factura se emite solo con RUC (11 dígitos)', type: 'error' });
+            return false;
+        }
+
+        if (boletaRequiereDni(tipoComprobante, total, numeroDocumento)) {
+            notify({ message: MENSAJE_BOLETA_SIN_DNI, type: 'error' });
             return false;
         }
 

@@ -1,3 +1,4 @@
+import { boletaRequiereDni, MENSAJE_BOLETA_SIN_DNI } from './autoboleteo';
 import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, ICompraForm, IDbResponse, IEditarCierreTurno, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
 import sql, { ConnectionPool, ISqlTypeFactoryWithLength, ISqlTypeFactoryWithNoParams, Transaction } from 'mssql';
 import { Constants } from './constants';
@@ -63,6 +64,11 @@ import { toLocaleStorage } from './formats';
             await transaction.begin();
 
             try {
+                    //El facturador rechaza las boletas de mas de 700 soles sin DNI. Se corta aqui,
+                    //antes de consumir correlativo y de marcar el abastecimiento como facturado.
+                    if (boletaRequiereDni(tipo_comprobante, Number(total), Receptor?.numero_documento)) {
+                        throw new Error(MENSAJE_BOLETA_SIN_DNI);
+                    }
                     //Validar que el documento afectado no tenga ya una nota de credito vigente.
                     //Va dentro de la transaccion y antes de pedir correlativo para no consumir uno.
                     //Una NC con errors se considera no vigente: debe poder reemitirse.
