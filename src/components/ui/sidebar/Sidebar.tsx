@@ -27,6 +27,7 @@ import { useUIStore } from "@/store";
 import { logout } from "@/actions";
 import { countVentasPendientes } from "@/actions/cierreturno";
 import { notify } from "@/utils";
+import { mensajeBloqueoCierre } from "@/utils/cierre";
 
 //import { useUIStore } from "@/store";
 //import { logout } from "@/actions";
@@ -44,13 +45,10 @@ export const Sidebar = () => {
   const handleCierreTurno = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     try {
-      const pendientes = await countVentasPendientes();
-      if (pendientes > 0) {
+      const bloqueo = mensajeBloqueoCierre(await countVentasPendientes());
+      if (bloqueo) {
         closeMenu();
-        notify({
-          message: `Hay ${pendientes} venta(s) pendientes de boletear en la isla. Boletee todas las ventas antes de cerrar el turno.`,
-          type: "error",
-        });
+        notify({ message: bloqueo, type: "error" });
         return;
       }
     } catch (error) {
