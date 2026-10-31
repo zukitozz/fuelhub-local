@@ -36,7 +36,8 @@ export async function countVentasPendientes(): Promise<IPendientesCierre> {
               AND c.IslaId = ${islaId}
               AND c.tipo_comprobante IN ('01', '03')
               AND ISNULL(c.errors, '') NOT IN ('', 'null')
-              AND c.errors NOT LIKE '%${Constants.NC_ESPERANDO_MARCA}%'
+              AND c.errors NOT LIKE '%${Constants.NC_ESPERANDO_MARCA}%' 
+              AND c.errors NOT LIKE '${Constants.COMPROBANTE_EXCLUIDO_MARCA}%'
         `).then(r => r?.[0]?.total ?? 0),
     ]);
 
