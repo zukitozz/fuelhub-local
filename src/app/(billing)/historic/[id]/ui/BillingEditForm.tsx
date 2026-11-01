@@ -31,7 +31,8 @@ export const BillingEditForm = ({ billing }: Props) => {
 
     const form: IBillingForm = {
         tipoComprobante: billing.tipo_comprobante,
-        tipoDocumento: billing.Receptor?.tipo_documento || "",
+        // En BD el DNI es '1' (SUNAT); el formulario lo maneja como '0'
+        tipoDocumento: (billing.Receptor?.tipo_documento === Constants.TIPO_DOCUMENTO.DNI_SUNAT ? Constants.TIPO_DOCUMENTO.DNI : billing.Receptor?.tipo_documento) || "",
         numeroDocumento: billing.Receptor?.numero_documento || "",
         razonSocial: billing.Receptor?.razon_social || "",
         direccion: billing.Receptor?.direccion || "",
