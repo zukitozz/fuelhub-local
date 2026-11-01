@@ -178,6 +178,15 @@ import { toLocaleStorage } from './formats';
                     const sqlReactivarRequest = new sql.Request(transaction);
                     sqlReactivarRequest.input('id', sql.Int, id_receptor);
                     await sqlReactivarRequest.query(`UPDATE Receptores set estado = 1 where id = @id and estado = 0`);
+                    //spReceptorCrear deja los DNI con tipo '0', pero el facturador exige '1' (catalogo 06
+                    //de SUNAT) y rechaza las boletas de mas de 700 soles. Los clientes varios (documento
+                    //'0') y los RUC no se tocan.
+                    if (/^\d{8}$/.test(Receptor.numero_documento || '')) {
+                        const sqlTipoRequest = new sql.Request(transaction);
+                        sqlTipoRequest.input('id', sql.Int, id_receptor);
+                        sqlTipoRequest.input('tipo', sql.NVarChar, Constants.TIPO_DOCUMENTO.DNI_SUNAT);
+                        await sqlTipoRequest.query(`UPDATE Receptores set tipo_documento = @tipo where id = @id and tipo_documento <> @tipo`);
+                    }
                     //Insertar comprobante
                     const sqlRequest = new sql.Request(transaction);
                     sqlRequest.input('tipo_comprobante', sql.NVarChar, tipo_comprobante);
