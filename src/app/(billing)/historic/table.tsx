@@ -1,6 +1,7 @@
 'use client';
 import useSWR from 'swr';
 import { getHistoricos } from '@/actions'
+import { obtenerSolicitudesPendientes } from '@/actions/correcciones'
 import { IComprobanteHistorico } from '@/interfaces';
 import Link from 'next/link';
 import { useSession } from "next-auth/react";
@@ -56,6 +57,13 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
         setCurrentPage(1); 
         setNumeracion(e.target.value);
     };    
+
+    // Correcciones pendientes de aprobar: solo las ve el administrador, de cualquier fecha, y se refrescan solas
+    const { data: pendientes } = useSWR(
+        isAdmin ? 'correcciones-pendientes' : null,
+        () => obtenerSolicitudesPendientes(),
+        { refreshInterval: 15000 }
+    );
 
     const { data, error, isValidating, isLoading, mutate } = useSWR(
         `${process.env.NEXT_PUBLIC_URL}/api?page=${currentPage}&date=${date}&num=${numeracion}`, 
@@ -145,6 +153,41 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
 
     return (
         <>
+        {isAdmin && !!pendientes?.length && (
+            <div className="mb-6 border border-amber-300 bg-amber-50 rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-amber-100 text-amber-900 font-bold text-sm">
+                    Correcciones pendientes de aprobar ({pendientes.length})
+                </div>
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-left text-gray-600 text-xs">
+                            <th className="px-4 py-2">Comprobante</th>
+                            <th className="px-3 py-2">Total</th>
+                            <th className="px-3 py-2">Cliente propuesto</th>
+                            <th className="px-3 py-2">Observaciones</th>
+                            <th className="px-3 py-2">Solicitó</th>
+                            <th className="px-3 py-2">Fecha</th>
+                            <th className="px-3 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {pendientes.map(p => (
+                            <tr key={p.id} className="border-t border-amber-200">
+                                <td className="px-4 py-2 font-medium">{p.numeracion_comprobante}</td>
+                                <td className="px-3 py-2">{p.total}</td>
+                                <td className="px-3 py-2 max-w-[220px] truncate" title={`${p.numero_documento} ${p.razon_social}`}>{p.numero_documento} · {p.razon_social}</td>
+                                <td className="px-3 py-2 max-w-[260px] truncate" title={p.observaciones}>{p.observaciones}</td>
+                                <td className="px-3 py-2">{p.usuario ?? '-'}{p.isla ? ` · ${p.isla}` : ''}</td>
+                                <td className="px-3 py-2 whitespace-nowrap">{toLocaleShow(p.fecha_solicitud)}</td>
+                                <td className="px-3 py-2 text-right">
+                                    <Link href={`/historic/solicitud/${p.id}`} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-3 rounded">Revisar</Link>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        )}
         <div className="flex justify-between items-center mb-5 gap-4">
             <input
                 type="date"
