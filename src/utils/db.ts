@@ -1,4 +1,5 @@
 import { boletaRequiereDni, MENSAJE_BOLETA_SIN_DNI } from './autoboleteo';
+import { esClientesVarios, RAZON_SOCIAL_CLIENTES_VARIOS } from './clientes-varios';
 import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, ICompraForm, IDbResponse, IEditarCierreTurno, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
 import sql, { ConnectionPool, ISqlTypeFactoryWithLength, ISqlTypeFactoryWithNoParams, Transaction } from 'mssql';
 import { Constants } from './constants';
@@ -165,11 +166,14 @@ import { toLocaleStorage } from './formats';
                     comprobante.numeracion_comprobante = numeracion_comprobante;
                     //Obtener receptor
                     const sqlReceptorRequest = new sql.Request(transaction);
+                    //Clientes varios (documento 0) es un receptor compartido: no se le asigna placa, nombre
+                    //ni direccion, sin importar lo que llegue de la pantalla (se contaminaria para todas las ventas)
+                    const clientesVarios = esClientesVarios(Receptor.numero_documento);
                     sqlReceptorRequest.input('numero', sql.NVarChar, Receptor.numero_documento);
-                    sqlReceptorRequest.input('razon', sql.NVarChar, Receptor.razon_social);
-                    sqlReceptorRequest.input('direccion', sql.NVarChar, Receptor.direccion);
-                    sqlReceptorRequest.input('correo', sql.NVarChar, Receptor.correo);
-                    sqlReceptorRequest.input('placa', sql.NVarChar, Receptor.placa);
+                    sqlReceptorRequest.input('razon', sql.NVarChar, clientesVarios ? RAZON_SOCIAL_CLIENTES_VARIOS : Receptor.razon_social);
+                    sqlReceptorRequest.input('direccion', sql.NVarChar, clientesVarios ? '' : Receptor.direccion);
+                    sqlReceptorRequest.input('correo', sql.NVarChar, clientesVarios ? '' : Receptor.correo);
+                    sqlReceptorRequest.input('placa', sql.NVarChar, clientesVarios ? '' : Receptor.placa);
                     sqlReceptorRequest.input('usuario', sql.Int, UsuarioId);
                     sqlReceptorRequest.output('resultado', sql.Int);
                     const receptor = await sqlReceptorRequest.execute(`dbo.spReceptorCrear`);
@@ -217,7 +221,7 @@ import { toLocaleStorage } from './formats';
                     sqlRequest.input('pago_tarjeta', sql.Float, tarjeta);
                     sqlRequest.input('pago_efectivo', sql.Float, efectivo);
                     sqlRequest.input('pago_yape', sql.Float, yape);
-                    sqlRequest.input('placa', sql.NVarChar, placa);
+                    sqlRequest.input('placa', sql.NVarChar, clientesVarios ? null : placa);
                     sqlRequest.input('billete', sql.Float, billete);
                     sqlRequest.input('producto_precio', sql.Float, producto_precio);
                     sqlRequest.input('ruc', sql.NVarChar, ruc);

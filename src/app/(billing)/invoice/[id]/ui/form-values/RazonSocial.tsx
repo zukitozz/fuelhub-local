@@ -6,12 +6,15 @@ import { IReceptor } from '@/interfaces';
 import { Constants } from '@/utils/constants';
 import { useOrderAbastecimientoStore } from '@/store';
 import { notify } from '@/utils/notify';
+import { esClientesVarios } from '@/utils/clientes-varios';
 interface Props {
     formValues: IBillingForm;
     setFormValues: (values: IBillingForm) => void;
+    // En la pantalla de corrección los campos no se bloquean al cargar un cliente (ese bloqueo es de la venta)
+    sinBloqueo?: boolean;
 }
 
-export const RazonSocial = ({ formValues, setFormValues }: Props) => {
+export const RazonSocial = ({ formValues, setFormValues, sinBloqueo = false }: Props) => {
 
     const applyDiscountIfExists = useOrderAbastecimientoStore((state) => state.applyDiscountIfExists);
     const lockBilling = useOrderAbastecimientoStore((state) => state.lockBilling);
@@ -19,7 +22,11 @@ export const RazonSocial = ({ formValues, setFormValues }: Props) => {
 
     const [suggestions, setSuggestions] = useState<IReceptor[]>([]);
 
+    // Con documento 0 (clientes varios) el nombre es fijo y no se puede cambiar
+    const bloqueadaPorClientesVarios = esClientesVarios(formValues.numeroDocumento);
+
     const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (bloqueadaPorClientesVarios) return;
         const value = event.target.value;
         setFormValues({ ...formValues, razonSocial: value });
         if(value.length > 2){
@@ -64,7 +71,7 @@ export const RazonSocial = ({ formValues, setFormValues }: Props) => {
                 value={ formValues.razonSocial }
                 onChange={ handleChange }
                 onKeyDown={ handleKeyDown }
-                disabled={isBillingBlocked}
+                disabled={(isBillingBlocked && !sinBloqueo) || bloqueadaPorClientesVarios}
             />
             <SuggestionInput suggestions={suggestions} onSelect={handleSelectSuggestion}/>
         </div>
