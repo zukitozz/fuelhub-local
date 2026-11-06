@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { boletaRequiereDni, MENSAJE_BOLETA_SIN_DNI } from "@/utils/autoboleteo";
+import { cantidadParaFactura } from "@/utils/cantidad-factura";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { getSerieActivaRetroactiva, saveBilling, validatePrevBilling } from "@/actions";
@@ -177,8 +178,12 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
         }
         const items:IComprobanteAdminItem[] = [];
         for (const order of orders) {
+            // En facturas la cantidad se calcula exacta (importe / precio) para que SUNAT no rechace el precio unitario
+            const cantidadItem = tipoComprobante === Constants.TIPO_COMPROBANTE.FACTURA
+                ? cantidadParaFactura(order.precio, order.precio_unitario, order.cantidad)
+                : order.cantidad;
             const item:IComprobanteAdminItem = {
-                cantidad: order.cantidad.toString(),
+                cantidad: cantidadItem.toString(),
                 precio_unitario: order.precio_unitario.toString(),
                 valor_unitario: order.valor_unitario.toString(),
                 igv: order.igv.toString(),
@@ -191,7 +196,7 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
                 precio: order.precio_unitario,
                 igv_venta: order.igv,
                 codigo: 0,
-                cantidad_venta: order.cantidad
+                cantidad_venta: cantidadItem
             };
             items.push(item);
         }
