@@ -9,7 +9,7 @@ import { cantidadParaFactura } from '@/utils/cantidad-factura';
 import { executeQuery, saveBillingTransaction } from '@/utils/db';
 import { getHistoricoById } from '@/actions/historicos/get-historicos';
 import { saveCheckNc } from '@/actions/billing/save-billing';
-import { IComprobanteAdmin, ICorreccionInput, IRespuestaCorreccion, ISolicitudCorreccion } from '@/interfaces';
+import { IComprobanteAdmin, ICorreccionInput, IRespuestaCorreccion, IResumenSolicitudPendiente, ISolicitudCorreccion } from '@/interfaces';
 
 const db = () => process.env.DB_DATABASE_AUXILIAR || "";
 const esAdmin = (rol?: string) => rol === Constants.ROL.ADMIN_ROLE;
@@ -101,6 +101,26 @@ export async function crearSolicitudCorreccion(input: ICorreccionInput): Promise
         console.error('Error crearSolicitudCorreccion:', error);
         const detalle = error instanceof Error ? error.message : JSON.stringify(error);
         return { status: false, message: `No se pudo registrar la corrección | ${detalle}` };
+    }
+}
+
+// Todas las correcciones pendientes de aprobar, de cualquier fecha: las más antiguas primero
+// (llevan más tiempo esperando). Si la tabla aún no existe en la estación, devuelve una lista vacía.
+export async function obtenerSolicitudesPendientes(): Promise<IResumenSolicitudPendiente[]> {
+    const session = await auth();
+    if (!esAdmin(session?.user?.rol)) return [];
+    try {
+        return await executeQuery<IResumenSolicitudPendiente[]>(db(),
+            `SELECT s.id, s.ComprobanteId, s.numeracion_comprobante, TRY_CONVERT(decimal(18,2), c.total) AS total,
+                    s.numero_documento, s.razon_social, s.observaciones, u.nombre AS usuario, i.nombre AS isla, s.fecha_solicitud
+             FROM SolicitudesCorreccion s
+             LEFT JOIN Comprobantes c ON c.id = s.ComprobanteId
+             LEFT JOIN Usuarios u ON u.id = s.UsuarioId
+             LEFT JOIN Islas i ON i.id = s.IslaId
+             WHERE s.estado = 'PENDIENTE'
+             ORDER BY s.fecha_solicitud ASC, s.id ASC`);
+    } catch {
+        return [];
     }
 }
 

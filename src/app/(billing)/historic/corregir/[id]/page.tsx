@@ -60,13 +60,19 @@ export default async function CorregirComprobantePage({ params }: Readonly<Props
         <div className="flex justify-center items-center mb-72 px-10 sm:px-0">
             <div className="flex flex-col w-[1000px]">
                 <Title title="Corregir comprobante" />
-                <div className="bg-white rounded-xl shadow-xl p-7">
-                    <CorreccionForm
-                        comprobanteId={id}
-                        numeracion={data.numeracion_comprobante}
-                        total={aNumero(data.total)}
-                        inicial={inicial}
-                    />
+                {/* Marco de color para que el grifero note que está en una opción distinta a la venta normal */}
+                <div className="border-4 border-amber-500 rounded-xl shadow-xl overflow-hidden bg-white">
+                    <div className="bg-amber-500 text-white font-bold text-center py-2 px-4 tracking-wide">
+                        MODO CORRECCIÓN · Esta opción no emite el comprobante: envía una solicitud al administrador
+                    </div>
+                    <div className="p-7">
+                        <CorreccionForm
+                            comprobanteId={id}
+                            numeracion={data.numeracion_comprobante}
+                            total={aNumero(data.total)}
+                            inicial={inicial}
+                        />
+                    </div>
                 </div>
             </div>
         </div>

@@ -41,6 +41,20 @@ export interface ISolicitudCorreccion {
     usuario?: string;
 }
 
+// Fila del bloque "Correcciones pendientes de aprobar" del histórico del administrador
+export interface IResumenSolicitudPendiente {
+    id: number;
+    ComprobanteId: number;
+    numeracion_comprobante: string;
+    total: number;
+    numero_documento: string;
+    razon_social: string;
+    observaciones: string;
+    usuario: string | null;
+    isla: string | null;
+    fecha_solicitud: string;
+}
+
 export interface IRespuestaCorreccion {
     status: boolean;
     message: string;
