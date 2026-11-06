@@ -16,7 +16,9 @@ export const Constants = {
         // Valor que maneja el formulario para DNI y "clientes varios"
         DNI: '0',
         // Valor del catálogo 06 de SUNAT: es el que guarda la BD y exige el facturador para un DNI
-        DNI_SUNAT: '1'
+        DNI_SUNAT: '1',
+        // Valor del catálogo 06 de SUNAT para RUC (el formulario también lo maneja como '6')
+        RUC_SUNAT: '6'
     },
     ETAPA_FACTURACION: {
         CREADO: 'CREATED',

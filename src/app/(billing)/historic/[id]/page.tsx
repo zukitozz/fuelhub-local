@@ -2,7 +2,9 @@ import { Title } from "@/components";
 import { getHistoricoById } from "@/actions/historicos/get-historicos";
 import { BillingEditForm } from "./ui/BillingEditForm";
 import { BillingEditSummary } from "./ui/BillingEditSummary";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { auth } from "@/auth.config";
+import { Constants } from "@/utils/constants";
 
 interface Props {
   params: {
@@ -12,6 +14,12 @@ interface Props {
 
 
 export default async function InvoiceByIdPage({ params }: Readonly<Props>) {
+    // La nota de crédito solo la emiten los administradores
+    const session = await auth();
+    if (session?.user?.rol !== Constants.ROL.ADMIN_ROLE) {
+        redirect('/historic');
+    }
+
     const { id } = params;
     const data = await getHistoricoById(id);
 

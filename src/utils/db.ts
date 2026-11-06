@@ -47,7 +47,9 @@ import { toLocaleStorage } from './formats';
         }
     }
 
-    export async function saveBillingTransaction(comprobante: IComprobanteAdmin): Promise<IComprobanteAdmin> {
+    // omitirStock: las correcciones de un comprobante (nota de credito + comprobante nuevo) no deben mover el
+    // stock de tienda: la mercaderia se vendio una sola vez y ya se desconto con el comprobante original.
+    export async function saveBillingTransaction(comprobante: IComprobanteAdmin, opciones: { omitirStock?: boolean } = {}): Promise<IComprobanteAdmin> {
         config.database = process.env.DB_DATABASE_AUXILIAR||"";
         try {
             const { 
@@ -106,6 +108,11 @@ import { toLocaleStorage } from './formats';
                     const sqlUsuarioRequest = new sql.Request(transaction);
                     sqlUsuarioRequest.input('UsuarioId', sql.Int, UsuarioId);
                     const usuarioEmisor = await sqlUsuarioRequest.query(`SELECT rol FROM Usuarios WHERE id = @UsuarioId`);
+                    //Las notas de credito las emiten solo los administradores. Se valida aqui, con el rol
+                    //guardado en BD, para que no se pueda saltar ocultando el boton en la pantalla.
+                    if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_CREDITO && usuarioEmisor.recordset[0]?.rol !== Constants.ROL.ADMIN_ROLE) {
+                        throw new Error('Solo un administrador puede emitir notas de crédito');
+                    }
                     const codigoProposito = usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE
                         ? Constants.CODIGO_PROPOSITO.ADMIN
                         : Constants.CODIGO_PROPOSITO.INTERNA;
@@ -292,7 +299,7 @@ import { toLocaleStorage } from './formats';
                             );`);
                         //Descontar stock de productos de tienda (no gestiona el stock de los
                         //combustibles despachados por pistola, su inventario real es el tanque)
-                        if (!codigosPistolaSet.has(String(Number(item.codigo_producto)))) {
+                        if (!opciones.omitirStock && !codigosPistolaSet.has(String(Number(item.codigo_producto)))) {
                             const stockRequest = new sql.Request(transaction);
                             stockRequest.input('codigo_producto', sql.NVarChar, item.codigo_producto);
                             stockRequest.input('cantidad_venta', sql.Float, item.cantidad_venta);

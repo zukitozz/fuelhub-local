@@ -2,6 +2,7 @@ export * from './auth/login';
 export * from './auth/logout';
 export * from './cierredia'
 export * from './compras';
+export * from './correcciones';
 export * from './depositos';
 export * from './descuentos';
 export * from './gastos';

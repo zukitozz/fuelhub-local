@@ -19,7 +19,7 @@ export async function getHistoricos(page: number, perPage: number, fecha: string
 
     try {
         const query = `select * from (SELECT 
-                        c.id, CASE c.tipo_comprobante WHEN '01' THEN 'FACTURA ELECTRÓNICA' WHEN '03' THEN 'BOLETA ELECTRÓNICA' WHEN '07' THEN 'NOTA DE CREDITO' WHEN '08' THEN 'NOTA DE DEBITO' WHEN '50' THEN 'NOTA DE DESPACHO' WHEN '51' THEN 'CALIBRACION' ELSE 'INTERNO' END as tipo_comprobante,
+                        c.id, c.tipo_comprobante AS tipo_codigo, c.IslaId, CASE c.tipo_comprobante WHEN '01' THEN 'FACTURA ELECTRÓNICA' WHEN '03' THEN 'BOLETA ELECTRÓNICA' WHEN '07' THEN 'NOTA DE CREDITO' WHEN '08' THEN 'NOTA DE DEBITO' WHEN '50' THEN 'NOTA DE DESPACHO' WHEN '51' THEN 'CALIBRACION' ELSE 'INTERNO' END as tipo_comprobante,
                         c.numeracion_comprobante,c.fecha_emision,c.tipo_moneda,c.tipo_operacion,c.tipo_nota,c.tipo_documento_afectado,c.fecha_documento_afectado,c.numeracion_documento_afectado,c.motivo_documento_afectado,c.total_gravadas,c.total_igv,c.total_venta,c.monto_letras,c.cadena_para_codigo_qr,c.codigo_hash,c.url,c.errors,CASE WHEN c.pdf_bytes IS NOT NULL THEN 1 ELSE 0 END as pdf_bytes,c.id_abastecimiento,c.pistola,c.codigo_combustible,c.dec_combustible,c.volumen,c.fecha_abastecimiento,c.tiempo_abastecimiento,c.volumen_tanque,c.comentario,c.pago_tarjeta,c.pago_efectivo,c.pago_yape,c.placa,c.billete,c.producto_precio,c.ruc,c.enviado,c.estado_nota_despacho,c.comprobante_nota_despacho,c.fecha_facturado_nota_despacho,c.ReceptorId,c.UsuarioId,c.CierreturnoId,c.fecha_hora,c.gravadas,c.igv,c.total,c.inicio_medidor,c.fin_medidor,c.xml_envio,
                         CASE WHEN c.errors LIKE '%${Constants.NC_ESPERANDO_MARCA}%' THEN 1 ELSE 0 END as esperando,
                         (SELECT TOP 1 nc.numeracion_comprobante FROM Comprobantes nc
@@ -71,6 +71,26 @@ export async function getHistoricos(page: number, perPage: number, fecha: string
             historico.Receptor = receptor[0];
             return historico;
     }))        
+
+        // Correcciones solicitadas por los griferos. Va aparte y dentro de un try: si la tabla todavia
+        // no existe en esta estacion, el historico debe seguir funcionando sin ese dato.
+        try {
+            const ids = historicos.map(h => Number(h.id)).filter(id => Number.isInteger(id) && id > 0);
+            if (ids.length > 0) {
+                const correcciones = await executeQuery<{ id: number; ComprobanteId: number; estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' }[]>(
+                    process.env.DB_DATABASE_AUXILIAR||"",
+                    `SELECT id, ComprobanteId, estado FROM SolicitudesCorreccion WHERE ComprobanteId IN (${ids.join(',')})`
+                );
+                const porComprobante = new Map(correcciones.map(c => [c.ComprobanteId, c]));
+                historicos.forEach(h => {
+                    const c = porComprobante.get(Number(h.id));
+                    h.correccion_id = c?.id ?? null;
+                    h.correccion_estado = c?.estado ?? null;
+                });
+            }
+        } catch {
+            // tabla SolicitudesCorreccion inexistente: sin correcciones que mostrar
+        }
 
         return {
             historicos : historicos as IComprobanteHistorico[],
