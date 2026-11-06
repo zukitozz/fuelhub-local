@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useSession } from "next-auth/react";
 
 import { ChangeEvent, SetStateAction, useEffect, useState } from 'react';
-import { toLocaleOnlyDate, toLocaleShow } from '@/utils';
+import { Constants, toLocaleOnlyDate, toLocaleShow } from '@/utils';
 import PrintButton from '@/components/ui/print/Printbutton';
 
 interface TableProps {
@@ -36,6 +36,13 @@ const getVisiblePages = (current: number, totalPages: number) => {
 
 export const HistoricosTable = ({ page, perPage }: TableProps) => {
     const { data: session } = useSession();
+    // Las notas de crédito las emiten solo los administradores; los griferos no ven el botón
+    const isAdmin = session?.user?.rol === Constants.ROL.ADMIN_ROLE;
+    const islaSesion = Number(session?.user?.islaId) || 0;
+    // Mismas reglas que valida el servidor: factura o boleta aceptada, de su isla, sin cierre ni corrección previa
+    const puedeCorregir = (item: IComprobanteHistorico) =>
+        ['01', '03'].includes(item.tipo_codigo ?? '') && !!item.enviado && !item.errors && !item.numeracion_documento_afectado
+        && !item.CierreturnoId && !item.correccion_estado && islaSesion > 0 && Number(item.IslaId) === islaSesion;
     const [date, setDate] = useState<string>(toLocaleOnlyDate(new Date(Date.now() - (5 * 60 * 60 * 1000))));   
     const [numeracion, setNumeracion] = useState<string>(''); 
     const [currentPage, setCurrentPage] = useState(1);
@@ -105,9 +112,26 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                                 <span title={`La nota de crédito ${item.nc_en_espera} está en espera de que SUNAT acepte esta boleta; se enviará sola. No generes otra.`}
                                     className="bg-amber-100 text-amber-800 font-bold py-1.5 px-2 rounded cursor-help">NC en espera</span>
                             )}
-                            {!!item.enviado && !item.errors && !item.nc_en_espera && !item.numeracion_documento_afectado && (
+                            {/* Con una corrección pendiente o aprobada, la nota de crédito la genera esa corrección */}
+                            {isAdmin && !!item.enviado && !item.errors && !item.nc_en_espera && !item.numeracion_documento_afectado
+                                && item.correccion_estado !== 'PENDIENTE' && item.correccion_estado !== 'APROBADA' && (
                                 <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-2 rounded ml-1">N.Credito</Link>
                             )}
+                            {/* El grifero corrige comprobantes de su isla con el turno abierto; el administrador los aprueba */}
+                            {!isAdmin && puedeCorregir(item) && (
+                                <Link href={`/historic/corregir/${item.id}`} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-2 rounded ml-1">Corregir</Link>
+                            )}
+                            {item.correccion_estado && (() => {
+                                const etiquetas = {
+                                    PENDIENTE: { texto: isAdmin ? 'Corrección pendiente' : 'Corrección enviada', clase: 'bg-amber-100 text-amber-800' },
+                                    APROBADA: { texto: 'Corregido', clase: 'bg-green-100 text-green-800' },
+                                    RECHAZADA: { texto: 'Corrección rechazada', clase: 'bg-gray-200 text-gray-700' },
+                                }[item.correccion_estado];
+                                const clase = `${etiquetas.clase} font-bold py-1.5 px-2 rounded ml-1`;
+                                return isAdmin
+                                    ? <Link href={`/historic/solicitud/${item.correccion_id}`} className={`${clase} underline`}>{etiquetas.texto}</Link>
+                                    : <span className={clase}>{etiquetas.texto}</span>;
+                            })()}
                         </td>
                         <td className="text-sm text-gray-900 font-light px-3 ">
                             <PrintButton id={item.id || 0} session={session} />

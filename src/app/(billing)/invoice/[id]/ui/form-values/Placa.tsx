@@ -6,12 +6,15 @@ import { SuggestionPlacaInput } from './SuggestionPlacaInput';
 import { Constants } from '@/utils/constants';
 import { useOrderAbastecimientoStore } from '@/store';
 import { notify } from '@/utils/notify';
+import { esClientesVarios } from '@/utils/clientes-varios';
 interface Props {
     formValues: IBillingForm;
     setFormValues: (values: IBillingForm) => void;
+    // En la pantalla de corrección los campos no se bloquean al cargar un cliente (ese bloqueo es de la venta)
+    sinBloqueo?: boolean;
 }
 
-export const Placa = ({ formValues, setFormValues }: Props) => {
+export const Placa = ({ formValues, setFormValues, sinBloqueo = false }: Props) => {
 
     const applyDiscountIfExists = useOrderAbastecimientoStore((state) => state.applyDiscountIfExists);
     const lockBilling = useOrderAbastecimientoStore((state) => state.lockBilling);
@@ -19,10 +22,14 @@ export const Placa = ({ formValues, setFormValues }: Props) => {
     const [disabled, setDisabled] = useState<boolean>(false);
     const [suggestions, setSuggestions] = useState<IReceptorPlaca[]>([]);
 
+    // Con documento 0 (clientes varios) la placa no se puede asignar
+    const bloqueadaPorClientesVarios = esClientesVarios(formValues.numeroDocumento);
+
     const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (bloqueadaPorClientesVarios) return;
         const value = event.target.value;
         setFormValues({ ...formValues, placa: value.toLocaleUpperCase() });
-        if(isBillingBlocked) return;
+        if(isBillingBlocked && !sinBloqueo) return;
         if(value.length > 2){
             const allSuggestions = await getPlacas(value);
             const filtredSuggestions = allSuggestions.filter(suggestion => suggestion.placa.toLowerCase().includes(value.toLowerCase()));
@@ -70,7 +77,7 @@ export const Placa = ({ formValues, setFormValues }: Props) => {
                 value={ formValues.placa }
                 onChange={ handleChange }
                 onKeyDown={ handleKeyDown }
-                disabled={disabled}
+                disabled={(disabled && !sinBloqueo) || bloqueadaPorClientesVarios}
             />
             <SuggestionPlacaInput suggestions={suggestions} onSelect={handleSelectSuggestion}/>
         </div>

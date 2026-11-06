@@ -99,6 +99,13 @@ export interface IComprobanteHistorico extends IComprobanteAdmin {
     esperando?: number;
     // Numeracion de la NC que espera sobre este comprobante, si la hay
     nc_en_espera?: string | null;
+    // Código SUNAT del tipo ('01', '03', '07'...): tipo_comprobante llega como nombre en el histórico
+    tipo_codigo?: string;
+    // Cierre de turno al que pertenece (null mientras el turno sigue abierto)
+    CierreturnoId?: number | null;
+    // Corrección solicitada por el grifero sobre este comprobante (null si no hay)
+    correccion_id?: number | null;
+    correccion_estado?: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | null;
 }
 
 export interface IComprobantePDF {

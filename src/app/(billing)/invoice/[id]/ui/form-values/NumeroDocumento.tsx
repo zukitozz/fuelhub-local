@@ -5,13 +5,16 @@ import { useOrderAbastecimientoStore } from "@/store";
 import { IBillingForm } from '@/interfaces/billing.interface';
 import { Constants, consultaRucMiFact, notify } from '@/utils';
 import { IoPricetag } from 'react-icons/io5';
+import { esClientesVarios, RAZON_SOCIAL_CLIENTES_VARIOS } from '@/utils/clientes-varios';
 
 interface Props {
     formValues: IBillingForm;
     setFormValues: (values: IBillingForm) => void;
+    // En la pantalla de corrección los campos no se bloquean al cargar un cliente (ese bloqueo es de la venta)
+    sinBloqueo?: boolean;
 }
 
-export const NumeroDocumento = ({ formValues, setFormValues }: Props) => {
+export const NumeroDocumento = ({ formValues, setFormValues, sinBloqueo = false }: Props) => {
     
     const applyDiscountIfExists = useOrderAbastecimientoStore((state) => state.applyDiscountIfExists);
     const lockBilling = useOrderAbastecimientoStore((state) => state.lockBilling);
@@ -65,7 +68,15 @@ export const NumeroDocumento = ({ formValues, setFormValues }: Props) => {
         const esSeleccionManual = tipoActual === Constants.TIPO_COMPROBANTE.NOTA_DESPACHO || tipoActual === Constants.TIPO_COMPROBANTE.CALIBRACION;
         const tipoComprobante = (esSeleccionManual || numeroDocumento.length === 0) ? tipoActual : (numeroDocumento.length === 11 ? Constants.TIPO_COMPROBANTE.FACTURA : (  (numeroDocumento.length === 8 || numeroDocumento === "0") ? Constants.TIPO_COMPROBANTE.BOLETA : ''));
         const tipoDocumento = numeroDocumento.length === 11 ? Constants.TIPO_DOCUMENTO.RUC : (  (numeroDocumento.length === 8 || numeroDocumento === "0") ? Constants.TIPO_DOCUMENTO.DNI : '');
-        setFormValues({ ...formValues, tipoComprobante, tipoDocumento });
+        // Clientes varios (documento 0): nombre fijo, sin placa ni dirección. Al salir de ese documento
+        // se limpia el nombre fijo para que no quede arrastrado a otro cliente.
+        if (esClientesVarios(numeroDocumento)) {
+            setFormValues({ ...formValues, tipoComprobante, tipoDocumento, razonSocial: RAZON_SOCIAL_CLIENTES_VARIOS, direccion: '', placa: '' });
+        } else if (formValues.razonSocial === RAZON_SOCIAL_CLIENTES_VARIOS) {
+            setFormValues({ ...formValues, tipoComprobante, tipoDocumento, razonSocial: '' });
+        } else {
+            setFormValues({ ...formValues, tipoComprobante, tipoDocumento });
+        }
     }, [formValues.numeroDocumento])
     
     const labelDocumento = formValues.tipoDocumento === Constants.TIPO_DOCUMENTO.RUC ? 'RUC' : formValues.tipoDocumento === Constants.TIPO_DOCUMENTO.DNI ? 'DNI' : 'Número documento';
@@ -93,8 +104,11 @@ export const NumeroDocumento = ({ formValues, setFormValues }: Props) => {
                 onChange={ handleChangeNumeroDocumento }
                 onKeyDown={ handleKeyNumeroDocumento }
                 autoComplete="off"
-                disabled={isBillingBlocked}
+                disabled={isBillingBlocked && !sinBloqueo}
             />
+            {esClientesVarios(formValues.numeroDocumento) && (
+                <p className="text-[11px] text-gray-500 mt-1">Clientes varios: no lleva placa, nombre ni dirección.</p>
+            )}
             {hasDiscount && (
                 <div className="flex items-center animate-bounce">
                     <span className="flex h-2 w-2 mr-1">

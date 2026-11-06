@@ -1,4 +1,5 @@
 import { boletaRequiereDni, MENSAJE_BOLETA_SIN_DNI } from './autoboleteo';
+import { esClientesVarios, RAZON_SOCIAL_CLIENTES_VARIOS } from './clientes-varios';
 import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, ICompraForm, IDbResponse, IEditarCierreTurno, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
 import sql, { ConnectionPool, ISqlTypeFactoryWithLength, ISqlTypeFactoryWithNoParams, Transaction } from 'mssql';
 import { Constants } from './constants';
@@ -46,7 +47,9 @@ import { toLocaleStorage } from './formats';
         }
     }
 
-    export async function saveBillingTransaction(comprobante: IComprobanteAdmin): Promise<IComprobanteAdmin> {
+    // omitirStock: las correcciones de un comprobante (nota de credito + comprobante nuevo) no deben mover el
+    // stock de tienda: la mercaderia se vendio una sola vez y ya se desconto con el comprobante original.
+    export async function saveBillingTransaction(comprobante: IComprobanteAdmin, opciones: { omitirStock?: boolean } = {}): Promise<IComprobanteAdmin> {
         config.database = process.env.DB_DATABASE_AUXILIAR||"";
         try {
             const { 
@@ -105,6 +108,11 @@ import { toLocaleStorage } from './formats';
                     const sqlUsuarioRequest = new sql.Request(transaction);
                     sqlUsuarioRequest.input('UsuarioId', sql.Int, UsuarioId);
                     const usuarioEmisor = await sqlUsuarioRequest.query(`SELECT rol FROM Usuarios WHERE id = @UsuarioId`);
+                    //Las notas de credito las emiten solo los administradores. Se valida aqui, con el rol
+                    //guardado en BD, para que no se pueda saltar ocultando el boton en la pantalla.
+                    if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_CREDITO && usuarioEmisor.recordset[0]?.rol !== Constants.ROL.ADMIN_ROLE) {
+                        throw new Error('Solo un administrador puede emitir notas de crédito');
+                    }
                     const codigoProposito = usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE
                         ? Constants.CODIGO_PROPOSITO.ADMIN
                         : Constants.CODIGO_PROPOSITO.INTERNA;
@@ -165,11 +173,14 @@ import { toLocaleStorage } from './formats';
                     comprobante.numeracion_comprobante = numeracion_comprobante;
                     //Obtener receptor
                     const sqlReceptorRequest = new sql.Request(transaction);
+                    //Clientes varios (documento 0) es un receptor compartido: no se le asigna placa, nombre
+                    //ni direccion, sin importar lo que llegue de la pantalla (se contaminaria para todas las ventas)
+                    const clientesVarios = esClientesVarios(Receptor.numero_documento);
                     sqlReceptorRequest.input('numero', sql.NVarChar, Receptor.numero_documento);
-                    sqlReceptorRequest.input('razon', sql.NVarChar, Receptor.razon_social);
-                    sqlReceptorRequest.input('direccion', sql.NVarChar, Receptor.direccion);
-                    sqlReceptorRequest.input('correo', sql.NVarChar, Receptor.correo);
-                    sqlReceptorRequest.input('placa', sql.NVarChar, Receptor.placa);
+                    sqlReceptorRequest.input('razon', sql.NVarChar, clientesVarios ? RAZON_SOCIAL_CLIENTES_VARIOS : Receptor.razon_social);
+                    sqlReceptorRequest.input('direccion', sql.NVarChar, clientesVarios ? '' : Receptor.direccion);
+                    sqlReceptorRequest.input('correo', sql.NVarChar, clientesVarios ? '' : Receptor.correo);
+                    sqlReceptorRequest.input('placa', sql.NVarChar, clientesVarios ? '' : Receptor.placa);
                     sqlReceptorRequest.input('usuario', sql.Int, UsuarioId);
                     sqlReceptorRequest.output('resultado', sql.Int);
                     const receptor = await sqlReceptorRequest.execute(`dbo.spReceptorCrear`);
@@ -217,7 +228,7 @@ import { toLocaleStorage } from './formats';
                     sqlRequest.input('pago_tarjeta', sql.Float, tarjeta);
                     sqlRequest.input('pago_efectivo', sql.Float, efectivo);
                     sqlRequest.input('pago_yape', sql.Float, yape);
-                    sqlRequest.input('placa', sql.NVarChar, placa);
+                    sqlRequest.input('placa', sql.NVarChar, clientesVarios ? null : placa);
                     sqlRequest.input('billete', sql.Float, billete);
                     sqlRequest.input('producto_precio', sql.Float, producto_precio);
                     sqlRequest.input('ruc', sql.NVarChar, ruc);
@@ -288,7 +299,7 @@ import { toLocaleStorage } from './formats';
                             );`);
                         //Descontar stock de productos de tienda (no gestiona el stock de los
                         //combustibles despachados por pistola, su inventario real es el tanque)
-                        if (!codigosPistolaSet.has(String(Number(item.codigo_producto)))) {
+                        if (!opciones.omitirStock && !codigosPistolaSet.has(String(Number(item.codigo_producto)))) {
                             const stockRequest = new sql.Request(transaction);
                             stockRequest.input('codigo_producto', sql.NVarChar, item.codigo_producto);
                             stockRequest.input('cantidad_venta', sql.Float, item.cantidad_venta);
