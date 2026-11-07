@@ -203,6 +203,16 @@ import { toLocaleStorage } from './formats';
                         const receptor = await sqlReceptorRequest.execute(`dbo.spReceptorCrear`);
                         id_receptor = receptor.output['resultado'];
                     }
+                    //La direccion escrita en la venta actualiza la del cliente: spReceptorCrear no la actualiza si el
+                    //cliente ya existe. Impacta tambien a sus comprobantes anteriores (la impresion y el envio leen la
+                    //direccion del cliente) y es lo esperado. Solo cuando viene con valor, para no borrar una existente.
+                    const direccionVenta = (Receptor.direccion || '').trim().slice(0, 250);
+                    if (!clientesVarios && direccionVenta) {
+                        const sqlDireccionRequest = new sql.Request(transaction);
+                        sqlDireccionRequest.input('id', sql.Int, id_receptor);
+                        sqlDireccionRequest.input('direccion', sql.NVarChar, direccionVenta);
+                        await sqlDireccionRequest.query(`UPDATE Receptores SET direccion = @direccion WHERE id = @id AND ISNULL(direccion, '') <> @direccion`);
+                    }
                     //Si se factura a un cliente eliminado (inactivo), el sp lo reutiliza: se reactiva
                     const sqlReactivarRequest = new sql.Request(transaction);
                     sqlReactivarRequest.input('id', sql.Int, id_receptor);

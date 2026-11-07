@@ -1,16 +1,13 @@
 import { IBillingForm } from '@/interfaces';
 import React from 'react'
-import { useOrderAbastecimientoStore } from '@/store';
 import { esClientesVarios } from '@/utils/clientes-varios';
 interface Props {
     formValues: IBillingForm;
     setFormValues: (values: IBillingForm) => void;
-    // En la pantalla de corrección los campos no se bloquean al cargar un cliente (ese bloqueo es de la venta)
-    sinBloqueo?: boolean;
 }
-export const Direccion = ({ formValues, setFormValues, sinBloqueo = false }: Props) => {
-    const isBillingBlocked = useOrderAbastecimientoStore((state) => state.isBillingBlocked);
-    // Con documento 0 (clientes varios) la dirección no se puede asignar
+export const Direccion = ({ formValues, setFormValues }: Props) => {
+    // La dirección se puede corregir aunque el cliente ya esté cargado (por RUC o sugerencia): al emitir actualiza
+    // la del cliente. Solo con documento 0 (clientes varios) no se puede asignar.
     const bloqueadaPorClientesVarios = esClientesVarios(formValues.numeroDocumento);
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (bloqueadaPorClientesVarios) return;
@@ -31,7 +28,7 @@ export const Direccion = ({ formValues, setFormValues, sinBloqueo = false }: Pro
                 value={ formValues.direccion }
                 onChange={ handleChange }
                 onKeyDown={ handleKeyDown }
-                disabled={(isBillingBlocked && !sinBloqueo) || bloqueadaPorClientesVarios}
+                disabled={bloqueadaPorClientesVarios}
             />
         </div>
     )
