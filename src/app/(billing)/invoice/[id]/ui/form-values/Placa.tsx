@@ -6,7 +6,6 @@ import { SuggestionPlacaInput } from './SuggestionPlacaInput';
 import { Constants } from '@/utils/constants';
 import { useOrderAbastecimientoStore } from '@/store';
 import { notify } from '@/utils/notify';
-import { esClientesVarios } from '@/utils/clientes-varios';
 interface Props {
     formValues: IBillingForm;
     setFormValues: (values: IBillingForm) => void;
@@ -22,11 +21,7 @@ export const Placa = ({ formValues, setFormValues, sinBloqueo = false }: Props) 
     const [disabled, setDisabled] = useState<boolean>(false);
     const [suggestions, setSuggestions] = useState<IReceptorPlaca[]>([]);
 
-    // Con documento 0 (clientes varios) la placa no se puede asignar
-    const bloqueadaPorClientesVarios = esClientesVarios(formValues.numeroDocumento);
-
     const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (bloqueadaPorClientesVarios) return;
         const value = event.target.value;
         setFormValues({ ...formValues, placa: value.toLocaleUpperCase() });
         if(isBillingBlocked && !sinBloqueo) return;
@@ -77,7 +72,7 @@ export const Placa = ({ formValues, setFormValues, sinBloqueo = false }: Props) 
                 value={ formValues.placa }
                 onChange={ handleChange }
                 onKeyDown={ handleKeyDown }
-                disabled={(disabled && !sinBloqueo) || bloqueadaPorClientesVarios}
+                disabled={disabled && !sinBloqueo}
             />
             <SuggestionPlacaInput suggestions={suggestions} onSelect={handleSelectSuggestion}/>
         </div>
