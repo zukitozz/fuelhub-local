@@ -98,7 +98,7 @@ export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial }: Pr
                     <NumeroDocumento formValues={formValues} setFormValues={setFormValues} sinBloqueo />
                     <Placa formValues={formValues} setFormValues={setFormValues} sinBloqueo />
                     <RazonSocial formValues={formValues} setFormValues={setFormValues} sinBloqueo />
-                    <Direccion formValues={formValues} setFormValues={setFormValues} sinBloqueo />
+                    <Direccion formValues={formValues} setFormValues={setFormValues} />
                     <div className="col-span-2">
                         <label htmlFor="celular">Celular</label>
                         <input

@@ -1,5 +1,6 @@
 'use server';
 import { IReceptorPlaca } from '@/interfaces';
+import sql from 'mssql';
 import { executeQuery } from '@/utils/db';
 
 export async function getPlacas (placa: string): Promise<IReceptorPlaca[]> {
@@ -10,8 +11,9 @@ export async function getPlacas (placa: string): Promise<IReceptorPlaca[]> {
             SELECT TOP 10 r.id, r.numero_documento, r.razon_social, r.direccion, p.placa
             FROM Placas p 
             INNER JOIN Receptores r ON p.ReceptorId = r.id
-            WHERE r.estado = 1 AND p.placa like '%${placa}%'
-        `
+            WHERE r.estado = 1 AND r.numero_documento <> '0' AND p.placa like @placa
+        `,
+        [{ name: 'placa', value: `%${placa}%`, type: sql.NVarChar }]
     );
      return receptor as IReceptorPlaca[];
  

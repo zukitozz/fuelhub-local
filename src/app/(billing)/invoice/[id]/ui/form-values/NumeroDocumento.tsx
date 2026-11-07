@@ -68,10 +68,10 @@ export const NumeroDocumento = ({ formValues, setFormValues, sinBloqueo = false 
         const esSeleccionManual = tipoActual === Constants.TIPO_COMPROBANTE.NOTA_DESPACHO || tipoActual === Constants.TIPO_COMPROBANTE.CALIBRACION;
         const tipoComprobante = (esSeleccionManual || numeroDocumento.length === 0) ? tipoActual : (numeroDocumento.length === 11 ? Constants.TIPO_COMPROBANTE.FACTURA : (  (numeroDocumento.length === 8 || numeroDocumento === "0") ? Constants.TIPO_COMPROBANTE.BOLETA : ''));
         const tipoDocumento = numeroDocumento.length === 11 ? Constants.TIPO_DOCUMENTO.RUC : (  (numeroDocumento.length === 8 || numeroDocumento === "0") ? Constants.TIPO_DOCUMENTO.DNI : '');
-        // Clientes varios (documento 0): nombre fijo, sin placa ni dirección. Al salir de ese documento
-        // se limpia el nombre fijo para que no quede arrastrado a otro cliente.
+        // Clientes varios (documento 0): nombre fijo y sin dirección. La placa se puede escribir, pero solo queda
+        // en el comprobante (no se asocia al cliente). Al salir de ese documento se limpia el nombre fijo.
         if (esClientesVarios(numeroDocumento)) {
-            setFormValues({ ...formValues, tipoComprobante, tipoDocumento, razonSocial: RAZON_SOCIAL_CLIENTES_VARIOS, direccion: '', placa: '' });
+            setFormValues({ ...formValues, tipoComprobante, tipoDocumento, razonSocial: RAZON_SOCIAL_CLIENTES_VARIOS, direccion: '' });
         } else if (formValues.razonSocial === RAZON_SOCIAL_CLIENTES_VARIOS) {
             setFormValues({ ...formValues, tipoComprobante, tipoDocumento, razonSocial: '' });
         } else {
@@ -107,7 +107,7 @@ export const NumeroDocumento = ({ formValues, setFormValues, sinBloqueo = false 
                 disabled={isBillingBlocked && !sinBloqueo}
             />
             {esClientesVarios(formValues.numeroDocumento) && (
-                <p className="text-[11px] text-gray-500 mt-1">Clientes varios: no lleva placa, nombre ni dirección.</p>
+                <p className="text-[11px] text-gray-500 mt-1">Clientes varios: nombre y dirección fijos. La placa queda solo en el comprobante, no se asocia al cliente.</p>
             )}
             {hasDiscount && (
                 <div className="flex items-center animate-bounce">

@@ -172,19 +172,47 @@ import { toLocaleStorage } from './formats';
                     const numeracion_comprobante = correlativo.output['correlativo'];
                     comprobante.numeracion_comprobante = numeracion_comprobante;
                     //Obtener receptor
-                    const sqlReceptorRequest = new sql.Request(transaction);
-                    //Clientes varios (documento 0) es un receptor compartido: no se le asigna placa, nombre
-                    //ni direccion, sin importar lo que llegue de la pantalla (se contaminaria para todas las ventas)
+                    //Clientes varios (documento 0) es un receptor compartido: no se le asigna placa, nombre ni
+                    //direccion (se contaminaria para todas las ventas). La placa que se escriba en la venta queda
+                    //solo en el comprobante: no se asocia al receptor ni a la tabla Placas, para que al buscar una
+                    //placa no aparezca el cliente 0. Por eso no pasa por spReceptorCrear, que siempre las asocia.
                     const clientesVarios = esClientesVarios(Receptor.numero_documento);
-                    sqlReceptorRequest.input('numero', sql.NVarChar, Receptor.numero_documento);
-                    sqlReceptorRequest.input('razon', sql.NVarChar, clientesVarios ? RAZON_SOCIAL_CLIENTES_VARIOS : Receptor.razon_social);
-                    sqlReceptorRequest.input('direccion', sql.NVarChar, clientesVarios ? '' : Receptor.direccion);
-                    sqlReceptorRequest.input('correo', sql.NVarChar, clientesVarios ? '' : Receptor.correo);
-                    sqlReceptorRequest.input('placa', sql.NVarChar, clientesVarios ? '' : Receptor.placa);
-                    sqlReceptorRequest.input('usuario', sql.Int, UsuarioId);
-                    sqlReceptorRequest.output('resultado', sql.Int);
-                    const receptor = await sqlReceptorRequest.execute(`dbo.spReceptorCrear`);
-                    const id_receptor = receptor.output['resultado']
+                    let id_receptor: number;
+                    if (clientesVarios) {
+                        const sqlVariosRequest = new sql.Request(transaction);
+                        sqlVariosRequest.input('razon', sql.NVarChar, RAZON_SOCIAL_CLIENTES_VARIOS);
+                        const varios = await sqlVariosRequest.query(`
+                            DECLARE @id int = (SELECT TOP 1 id FROM Receptores WHERE numero_documento = '0' ORDER BY id DESC);
+                            IF @id IS NULL
+                            BEGIN
+                                INSERT INTO Receptores (numero_documento, tipo_documento, razon_social, direccion, correo, placa)
+                                VALUES ('0', '0', @razon, '', '', '');
+                                SET @id = SCOPE_IDENTITY();
+                            END
+                            SELECT @id AS id;`);
+                        id_receptor = varios.recordset[0].id;
+                    } else {
+                        const sqlReceptorRequest = new sql.Request(transaction);
+                        sqlReceptorRequest.input('numero', sql.NVarChar, Receptor.numero_documento);
+                        sqlReceptorRequest.input('razon', sql.NVarChar, Receptor.razon_social);
+                        sqlReceptorRequest.input('direccion', sql.NVarChar, Receptor.direccion);
+                        sqlReceptorRequest.input('correo', sql.NVarChar, Receptor.correo);
+                        sqlReceptorRequest.input('placa', sql.NVarChar, Receptor.placa);
+                        sqlReceptorRequest.input('usuario', sql.Int, UsuarioId);
+                        sqlReceptorRequest.output('resultado', sql.Int);
+                        const receptor = await sqlReceptorRequest.execute(`dbo.spReceptorCrear`);
+                        id_receptor = receptor.output['resultado'];
+                    }
+                    //La direccion escrita en la venta actualiza la del cliente: spReceptorCrear no la actualiza si el
+                    //cliente ya existe. Impacta tambien a sus comprobantes anteriores (la impresion y el envio leen la
+                    //direccion del cliente) y es lo esperado. Solo cuando viene con valor, para no borrar una existente.
+                    const direccionVenta = (Receptor.direccion || '').trim().slice(0, 250);
+                    if (!clientesVarios && direccionVenta) {
+                        const sqlDireccionRequest = new sql.Request(transaction);
+                        sqlDireccionRequest.input('id', sql.Int, id_receptor);
+                        sqlDireccionRequest.input('direccion', sql.NVarChar, direccionVenta);
+                        await sqlDireccionRequest.query(`UPDATE Receptores SET direccion = @direccion WHERE id = @id AND ISNULL(direccion, '') <> @direccion`);
+                    }
                     //Si se factura a un cliente eliminado (inactivo), el sp lo reutiliza: se reactiva
                     const sqlReactivarRequest = new sql.Request(transaction);
                     sqlReactivarRequest.input('id', sql.Int, id_receptor);
@@ -228,7 +256,7 @@ import { toLocaleStorage } from './formats';
                     sqlRequest.input('pago_tarjeta', sql.Float, tarjeta);
                     sqlRequest.input('pago_efectivo', sql.Float, efectivo);
                     sqlRequest.input('pago_yape', sql.Float, yape);
-                    sqlRequest.input('placa', sql.NVarChar, clientesVarios ? null : placa);
+                    sqlRequest.input('placa', sql.NVarChar, placa);
                     sqlRequest.input('billete', sql.Float, billete);
                     sqlRequest.input('producto_precio', sql.Float, producto_precio);
                     sqlRequest.input('ruc', sql.NVarChar, ruc);
