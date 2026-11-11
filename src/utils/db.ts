@@ -319,15 +319,17 @@ import { toLocaleStorage } from './formats';
                         itemRequest.input('igv_venta', sql.Float, item.igv_venta);
                         itemRequest.input('codigo', sql.Int, item.codigo);
                         itemRequest.input('cantidad_venta', sql.Float, item.cantidad_venta);
+                        itemRequest.input('placa', sql.NVarChar, item.placa ? String(item.placa).trim().slice(0, 20) : null);
                         await itemRequest.query(`INSERT INTO Items (
                                 ComprobanteId, cantidad, valor_unitario, precio_unitario, igv, descripcion,
-                                codigo_producto, medida, valor_venta, precio_venta, valor, precio, igv_venta, codigo, cantidad_venta
+                                codigo_producto, medida, valor_venta, precio_venta, valor, precio, igv_venta, codigo, cantidad_venta, placa
                             ) VALUES (@ComprobanteId, @cantidad, @valor_unitario, @precio_unitario, @igv, @descripcion,
-                                @codigo_producto, @medida, @valor_venta, @precio_venta, @valor, @precio, @igv_venta, @codigo, @cantidad_venta
+                                @codigo_producto, @medida, @valor_venta, @precio_venta, @valor, @precio, @igv_venta, @codigo, @cantidad_venta, @placa
                             );`);
                         //Descontar stock de productos de tienda (no gestiona el stock de los
                         //combustibles despachados por pistola, su inventario real es el tanque)
-                        if (!opciones.omitirStock && !codigosPistolaSet.has(String(Number(item.codigo_producto)))) {
+                        //La factura que consolida notas de despacho tampoco descuenta: cada nota ya descontó su stock al emitirse
+                        if (!opciones.omitirStock && !(comprobante.notas && comprobante.notas.length > 0) && !codigosPistolaSet.has(String(Number(item.codigo_producto)))) {
                             const stockRequest = new sql.Request(transaction);
                             stockRequest.input('codigo_producto', sql.NVarChar, item.codigo_producto);
                             stockRequest.input('cantidad_venta', sql.Float, item.cantidad_venta);

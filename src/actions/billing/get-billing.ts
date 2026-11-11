@@ -46,7 +46,7 @@ export async function obtieneComprobantePDF(id: number): Promise<IComprobantePDF
             c.id, r.razon_social as ReceptorRazonSocial, r.numero_documento as ReceptorRuc, r.direccion as ReceptorDireccion,
             c.fecha_emision as FechaEmision, '' as FechaVencimiento, '' as NumeroOrdenCompra, '' as NumeroGuiaRemision, 
             'CONTADO' as CondicionPago, c.monto_letras as MontoLetras, c.total as TotalVenta, c.gravadas as TotalGravadas, c.igv as TotalIgv,
-            c.pistola as Pistola, i.nombre as Isla, c.placa as Placa, inicio_medidor as InicioMedidor, fin_medidor as FinMedidor,
+            c.pistola as Pistola, i.nombre as Isla, c.placa as Placa, c.comentario as Observaciones, inicio_medidor as InicioMedidor, fin_medidor as FinMedidor,
             c.pago_efectivo as Efectivo, c.pago_tarjeta as Tarjeta, c.pago_yape as Yape, c.codigo_hash as CodigoHash, 
             c.numeracion_comprobante as NumeracionComprobante,
             c.tipo_comprobante as TipoComprobanteCodigo,
@@ -59,7 +59,7 @@ export async function obtieneComprobantePDF(id: number): Promise<IComprobantePDF
     const query_detalle = `
         SELECT 
             codigo_producto as codigo, cantidad_venta as cantidad, medida, 
-            descripcion, precio as precio_unitario, precio_venta as total_unitario 
+            descripcion, precio as precio_unitario, precio_venta as total_unitario, placa 
         from Items 
         where ComprobanteId = ${id};
     `;    

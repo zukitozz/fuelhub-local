@@ -69,6 +69,7 @@ export interface IComprobanteAdminItem {
     igv_venta: number;
     codigo: number
     cantidad_venta: number;
+    placa?: string | null;
 }
 export interface ICartProduct {
     cantidad_string: string;
@@ -113,6 +114,7 @@ export interface IComprobantePDF {
     Isla: string;
     Pistola: string;
     Placa: string;
+    Observaciones?: string | null;
 
     InicioMedidor: string;
     FinMedidor: string;
@@ -155,5 +157,6 @@ export interface IComprobantePDFItem {
     descripcion: string;
     total_unitario: number;
     precio_unitario: number;
+    placa?: string | null;
 }
 
