@@ -7,6 +7,8 @@ import { getDescuentosByNumeroDocumento, getProductoPorCodigo } from '@/actions'
 interface State {
     items: IOrderItem[];
     notas:IComprobanteAdmin[];
+    // Observaciones de la factura de notas de despacho (se guardan en el comprobante)
+    observaciones: string;
     isBillingBlocked: boolean;
     lockBilling: () => void;
     unlockBilling: () => void;
@@ -28,6 +30,7 @@ export const useOrderAbastecimientoStore = create<State>()(
         (set, get) => ({
             items: [],
             notas: [],
+            observaciones: '',
             isBillingBlocked: false,
             lockBilling: () => set({ isBillingBlocked: true }),
             unlockBilling: () => set({ isBillingBlocked: false }),
@@ -105,21 +108,9 @@ export const useOrderAbastecimientoStore = create<State>()(
                 });
                 set({ items: updatedItems });
             },
-            addNotaDespachoToOrder: ({ valor, precio, igv, descripcion, items }: INotaDespacho) => {
-                set({ items: [], notas: [] });
-                const despachoItem: IOrderItem = {
-                    cantidad: 1,
-                    precio,
-                    valor,
-                    igv,
-                    valor_unitario: valor,
-                    precio_unitario: precio,
-                    descripcion: descripcion ?? "Producto de nota de despacho",
-                    codigo_producto: '',
-                    medida: 'NIU',
-                    img: ''
-                }
-                set({ items: [despachoItem], notas: items });
+            // La factura lleva una línea por cada ítem de las notas (fecha, producto y placa), no una sola línea
+            addNotaDespachoToOrder: ({ descripcion, items, lineas }: INotaDespacho) => {
+                set({ items: lineas, notas: items, observaciones: (descripcion ?? '').trim() });
             },
             updateProductQuantity: (product: IOrderItem, quantity: number) => {
                 const { items } = get();
@@ -233,7 +224,7 @@ export const useOrderAbastecimientoStore = create<State>()(
                 set({ items: updatedItems });
             },
             removeAllProducts: () => {
-                set({ items: [], notas: [] });
+                set({ items: [], notas: [], observaciones: '' });
             },
         }),
         {

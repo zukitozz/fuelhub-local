@@ -61,6 +61,8 @@ export interface IOrderItem {
     fecha_abastecimiento?: string;
     total_inicio?: number;
     total_final?: number;
+    // Placa de la línea (facturas de notas de despacho: una línea por nota)
+    placa?: string;
     img?: string;
     nombre_producto?: string;
     descuento_aplicado?: boolean;

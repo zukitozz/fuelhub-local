@@ -31,8 +31,8 @@ export const BillingSummary = ({ orderInBilling, subTotal, totalIgv, total }: Pr
                 <span className="text-right font-bold col-span-1">Importe</span>
                 {
                     orderInBilling.map( (item, index) => (
-                        <div key={item.codigo_producto} className="col-span-3 grid grid-cols-3 py-1">
-                            <span className="">{item.descripcion}</span>
+                        <div key={`${item.codigo_producto}-${index}`} className="col-span-3 grid grid-cols-3 py-1">
+                            <span className="">{item.descripcion}{item.placa ? ` - ${item.placa}` : ''}</span>
                             <span className="text-right">{item.cantidad}</span>
                             <span className="text-right">{currencyFormat(item.valor)}</span>                            
                         </div>

@@ -49,6 +49,68 @@ export async function GET(
           <span class="chip">Fecha de referencia: <b>${fechaReferencia}</b></span>
         </div>` : '';
 
+    // Escapa texto libre (observaciones, placas, descripciones) antes de ponerlo en el HTML
+    const esc = (valor: unknown) => String(valor ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+
+    // Factura de notas de despacho: cada linea trae "dd/mm/aaaa - PRODUCTO" y la placa en su propia columna.
+    // Se reconoce por ese formato en TODAS las lineas; cualquier otro comprobante usa la tabla de siempre.
+    const formatoNota = /^(\d{2}\/\d{2}\/\d{4}) - (.*)$/;
+    const esDetalleNotas = comprobante.Items.length > 0 && comprobante.Items.every(item => formatoNota.test(item.descripcion || ''));
+
+    const tablaItems = esDetalleNotas ? `
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width: 13%;">Fecha</th>
+            <th style="width: 31%;">Producto</th>
+            <th style="width: 14%;">Placa</th>
+            <th style="width: 12%;" class="text-right">Cantidad</th>
+            <th style="width: 14%;" class="text-right">P. Unitario</th>
+            <th style="width: 16%;" class="text-right">Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${comprobante.Items.map(item => {
+            const partes = formatoNota.exec(item.descripcion || '');
+            return `
+            <tr>
+              <td>${esc(partes?.[1])}</td>
+              <td>${esc(partes?.[2])}</td>
+              <td>${esc(item.placa || '---')}</td>
+              <td class="text-right">${Number(item.cantidad).toFixed(3)}</td>
+              <td class="text-right">${currencyFormat(item.precio_unitario)}</td>
+              <td class="text-right">${currencyFormat(item.total_unitario)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    ` : `
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width: 12%;" class="text-center">Código</th>
+            <th style="width: 12%;" class="text-center">Cantidad</th>
+            <th style="width: 10%;" class="text-center">Unidad</th>
+            <th style="width: 42%;">Descripción</th>
+            <th style="width: 12%;" class="text-right">P. Unitario</th>
+            <th style="width: 12%;" class="text-right">Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${comprobante.Items.map(item => `
+            <tr>
+              <td class="text-center">${item.codigo}</td>
+              <td class="text-center">${item.cantidad}</td>
+              <td class="text-center">${item.medida || 'GLL'}</td>
+              <td>${item.descripcion}</td>
+              <td class="text-right">${currencyFormat(item.precio_unitario)}</td>
+              <td class="text-right">${currencyFormat(item.total_unitario)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
     const htmlContent = `
     <!DOCTYPE html>
     <html lang="es">
@@ -303,32 +365,15 @@ export async function GET(
             Yape: ${currencyFormat(comprobante.Yape)}
           </td>
         </tr>
+        ${ comprobante.Observaciones ? `
+        <tr>
+          <td class="info-label">Observaciones:</td>
+          <td class="info-value" colspan="3">${esc(comprobante.Observaciones)}</td>
+        </tr>
+        ` : '' }
       </table>
 
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th style="width: 12%;" class="text-center">Código</th>
-            <th style="width: 12%;" class="text-center">Cantidad</th>
-            <th style="width: 10%;" class="text-center">Unidad</th>
-            <th style="width: 42%;">Descripción</th>
-            <th style="width: 12%;" class="text-right">P. Unitario</th>
-            <th style="width: 12%;" class="text-right">Importe</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${comprobante.Items.map(item => `
-            <tr>
-              <td class="text-center">${item.codigo}</td>
-              <td class="text-center">${item.cantidad}</td>
-              <td class="text-center">${item.medida || 'GLL'}</td>
-              <td>${item.descripcion}</td>
-              <td class="text-right">${currencyFormat(item.precio_unitario)}</td>
-              <td class="text-right">${currencyFormat(item.total_unitario)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      ${tablaItems}
 
       <div class="totals-container">
         <div class="monto-letras">

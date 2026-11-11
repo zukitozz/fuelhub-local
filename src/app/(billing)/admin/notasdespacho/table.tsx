@@ -13,10 +13,13 @@ interface TableProps {
   setFechaInicio: ( value: string ) => void;
   fechaFin: string;
   setFechaFin: ( value: string ) => void;
+  // Placa corregida por nota (id -> placa). Solo se edita en las notas seleccionadas.
+  placasEditadas: Record<number, string>;
+  setPlaca: ( id: number, value: string ) => void;
 }
 
 export const NotasDespachoTable = ({ comprobantes, handleSelectNota, selectedNotas, rucFilter, setRucFilter,
-    fechaInicio, setFechaInicio, fechaFin, setFechaFin }: TableProps) => {
+    fechaInicio, setFechaInicio, fechaFin, setFechaFin, placasEditadas, setPlaca }: TableProps) => {
 
     return (
      <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
@@ -95,7 +98,18 @@ export const NotasDespachoTable = ({ comprobantes, handleSelectNota, selectedNot
                             <td className="p-4 text-xs text-gray-700">
                               {comprobante.items?.map(item => item.descripcion).join(', ')}
                             </td>
-                            <td className="p-4 font-medium text-gray-900">{comprobante.placa}</td>
+                            <td className="p-4 font-medium text-gray-900">
+                              {selectedNotas.includes(comprobante.id) ? (
+                                <input
+                                  type="text"
+                                  aria-label={`Placa de ${comprobante.numeracion_comprobante}`}
+                                  maxLength={10}
+                                  className="w-24 px-2 py-1 border border-blue-300 bg-blue-50 rounded text-sm uppercase focus:ring-2 focus:ring-blue-500 outline-none"
+                                  value={placasEditadas[comprobante.id] ?? comprobante.placa ?? ''}
+                                  onChange={(e) => setPlaca(comprobante.id || 0, e.target.value)}
+                                />
+                              ) : (comprobante.placa)}
+                            </td>
                             <td className="p-4 text-right font-semibold">{currencyFormat(comprobante.total)}</td>
                         </tr>                        
                     )

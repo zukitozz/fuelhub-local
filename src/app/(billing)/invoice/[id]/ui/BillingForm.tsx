@@ -27,6 +27,7 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
     
     // 1. Consumimos las notas del Store de Zustand
     const notas = useOrderAbastecimientoStore((state) => state.notas);
+    const observaciones = useOrderAbastecimientoStore((state) => state.observaciones);
     
     // Determinamos de forma limpia si el formulario debe estar deshabilitado/bloqueado
     const isDisabled = notas.length > 0;
@@ -196,7 +197,8 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
                 precio: order.precio_unitario,
                 igv_venta: order.igv,
                 codigo: 0,
-                cantidad_venta: cantidadItem
+                cantidad_venta: cantidadItem,
+                placa: order.placa || null
             };
             items.push(item);
         }
@@ -217,7 +219,7 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
         const comprobante = new Comprobante(
             receptor, tipoComprobante, subTotal, totalIgv, total, tarjeta==''?0: +tarjeta, efectivo==''?0: +efectivo, yape==''?0: +yape, ruc, UsuarioId, items, placa,
             fecha_abastecimiento, tiempo_abastecimiento, IslaId, id_abastecimiento, pistola, codigo_producto, cantidad, inicio_medidor, fin_medidor, monto_letras, arr_notas,
-            0, "", "", formValues.fechaEmision || null
+            0, "", notas.length > 0 ? observaciones : "", formValues.fechaEmision || null
         )
 
         const validatePrev = await validatePrevBilling(id_abastecimiento);

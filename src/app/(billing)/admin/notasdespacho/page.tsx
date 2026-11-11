@@ -7,6 +7,8 @@ import useSWR from 'swr';
 import { useOrderAbastecimientoStore } from '@/store';
 import { INotaDespacho } from '@/interfaces/notadespacho.interface';
 import { useRouter } from "next/navigation";
+import { IOrderItem } from "@/interfaces";
+import { cantidadParaFactura } from "@/utils/cantidad-factura";
 
 const fetcher = () => obtieneNotasDespacho();
 
@@ -23,6 +25,9 @@ export default function ConsolidacionDespachos () {
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  // Placa editada por nota (id de la nota -> placa): se corrige antes de emitir la factura
+  const [placasEditadas, setPlacasEditadas] = useState<Record<number, string>>({});
+  const setPlaca = (id: number, value: string) => setPlacasEditadas(prev => ({ ...prev, [id]: value.toUpperCase() }));
   const [showError, setShowError] = useState(false);  
 
   const handleSelectNota = (id: number) => {
@@ -62,20 +67,52 @@ export default function ConsolidacionDespachos () {
       return;
     }
 
-    // VALIDACIÓN: Campo descripción obligatorio
-    if (!descripcion.trim()) {
-      setShowError(true);
-      return;
-    }
-
     setShowError(false);
+
+    // Una línea por cada ítem de las notas: "dd/mm/aaaa - PRODUCTO" y la placa en su propia columna de la impresión
+    const fechaCorta = (fecha: string | Date) => {
+      const [anio, mes, dia] = toLocaleOnlyDate(fecha).split('-');
+      return `${dia}/${mes}/${anio}`;
+    };
+    const lineas: IOrderItem[] = notasSeleccionadasData.flatMap(nota => {
+      const placa = (placasEditadas[nota.id || 0] ?? nota.placa ?? '').trim().toUpperCase();
+      const fecha = fechaCorta(nota.fecha_hora);
+      const itemsNota = nota.items ?? [];
+      if (itemsNota.length === 0) {
+        // Nota sin ítems: una línea con su total, para que la suma de la factura no se descuadre
+        const precio = Number(nota.total);
+        const valor = Number(nota.gravadas);
+        return [{
+          cantidad: 1, precio, valor, igv: Number((precio - valor).toFixed(2)), valor_unitario: valor, precio_unitario: precio,
+          descripcion: `${fecha} - NOTA DE DESPACHO ${nota.numeracion_comprobante}`, codigo_producto: '', medida: 'NIU', placa,
+        } as IOrderItem];
+      }
+      return itemsNota.map(it => {
+        const precioTotal = Number(it.precio_venta);
+        const precioUnitario = Number(it.precio_unitario);
+        return {
+          // Cantidad exacta (importe / precio): SUNAT rechaza la factura si precio x cantidad no calza (error 3270)
+          cantidad: cantidadParaFactura(precioTotal, precioUnitario, Number(it.cantidad_venta)),
+          precio: precioTotal,
+          valor: Number(it.valor_venta),
+          igv: Number(it.igv_venta),
+          valor_unitario: Number(it.valor_unitario),
+          precio_unitario: precioUnitario,
+          descripcion: `${fecha} - ${it.descripcion}`,
+          codigo_producto: it.codigo_producto,
+          medida: it.medida || 'GLL',
+          placa,
+        } as IOrderItem;
+      });
+    });
 
     const item: INotaDespacho = {
       valor: Number((totalGravadas).toFixed(2)),
       precio: Number(total.toFixed(2)),
       igv: igvConsolidado,
-      descripcion: descripcion.trim(), // Insertamos la descripción ingresada
-      items: notasSeleccionadasData
+      descripcion: descripcion.trim(), // Observaciones (opcional): se guardan en el comprobante
+      items: notasSeleccionadasData,
+      lineas
     }
     addNotaDespachoToOrder(item);
     lockBilling();
@@ -101,6 +138,7 @@ export default function ConsolidacionDespachos () {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* TABLA DE SELECCIÓN (Ocupa 2 columnas) */}
         <NotasDespachoTable comprobantes={notasFiltradas} handleSelectNota={handleSelectNota} selectedNotas={selectedNotas}
+          placasEditadas={placasEditadas} setPlaca={setPlaca}
           rucFilter={rucFilter} setRucFilter={setRucFilter}
           fechaInicio={fechaInicio} setFechaInicio={setFechaInicio}
           fechaFin={fechaFin} setFechaFin={setFechaFin} />
@@ -123,7 +161,7 @@ export default function ConsolidacionDespachos () {
 
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="descripcion" className="text-xs font-bold text-gray-600 uppercase tracking-wide">
-                  Descripción del servicio / glosa <span className="text-red-500">*</span>
+                  Observaciones (opcional)
                 </label>
                 <textarea
                   id="descripcion"
