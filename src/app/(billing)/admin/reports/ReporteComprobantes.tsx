@@ -257,18 +257,20 @@ export const ReporteComprobantes = () => {
                         <col className="w-[13%]" />  {/* Fecha */}
                         <col className="w-[10%]" />  {/* Comprobante */}
                         <col className="w-[18%]" />  {/* Cliente */}
+                        <col className="w-[8%]" />   {/* Placa */}
                         <col className="w-[7%]" />   {/* Isla */}
                         <col className="w-[7%]" />   {/* Cantidad */}
                         <col className="w-[8%]" />   {/* Precio */}
                         <col className="w-[11%]" />  {/* Usuario */}
                         <col className="w-[7%]" />   {/* PDF */}
-                        <col className="w-[19%]" />  {/* Total */}
+                        <col className="w-[11%]" />  {/* Total */}
                     </colgroup>
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha</th>
                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Comprobante</th>
                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Placa</th>
                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Isla</th>
                             <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Cant.</th>
                             <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Precio</th>
@@ -284,6 +286,7 @@ export const ReporteComprobantes = () => {
                                     <td className="px-4 py-3 truncate text-sm text-gray-600">{toLocaleShow(item.fecha)}</td>
                                     <td className="px-4 py-3 truncate text-sm font-medium text-gray-900">{item.comprobante}</td>
                                     <td className="px-4 py-3 truncate text-sm text-gray-600" title={item.receptor}>{item.receptor}</td>
+                                    <td className="px-4 py-3 truncate text-sm text-gray-600" title={item.placa || ''}>{item.placa || '-'}</td>
                                     <td className="px-4 py-3 truncate text-sm text-gray-600">{item.isla || '-'}</td>
                                     <td className="px-4 py-3 truncate text-sm text-right text-gray-600">{item.cantidad ? item.cantidad.toFixed(3) : '-'}</td>
                                     <td className="px-4 py-3 truncate text-sm text-right text-gray-600">{item.precio_producto != null ? currencyFormat(item.precio_producto) : '-'}</td>
@@ -299,7 +302,7 @@ export const ReporteComprobantes = () => {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={9} className="px-6 py-10 text-center text-sm text-gray-400">
+                                <td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-400">
                                     No se encontraron registros con los criterios seleccionados.
                                 </td>
                             </tr>
@@ -309,7 +312,7 @@ export const ReporteComprobantes = () => {
                     {data && data.comprobantes.length > 0 && (
                         <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300">
                             <tr>
-                                <td colSpan={8} className="px-4 py-3 text-sm text-gray-900 uppercase">Total General</td>
+                                <td colSpan={9} className="px-4 py-3 text-sm text-gray-900 uppercase">Total General</td>
                                 <td className="px-4 py-3 text-sm text-right text-blue-700">{currencyFormat(data.totalGeneral)}</td>
                             </tr>
                         </tfoot>
