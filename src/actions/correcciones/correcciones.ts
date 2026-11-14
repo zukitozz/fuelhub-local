@@ -7,6 +7,7 @@ import { Constants } from '@/utils/constants';
 import { toLocaleStorage } from '@/utils/formats';
 import { cantidadParaFactura } from '@/utils/cantidad-factura';
 import { executeQuery, saveBillingTransaction } from '@/utils/db';
+import { asegurarPdfComprobante } from '@/utils/comprobante-pdf';
 import { getHistoricoById } from '@/actions/historicos/get-historicos';
 import { saveCheckNc } from '@/actions/billing/save-billing';
 import { IComprobanteAdmin, ICorreccionInput, IRespuestaCorreccion, IResumenSolicitudPendiente, ISolicitudCorreccion } from '@/interfaces';
@@ -201,6 +202,7 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
             nc.impresion = 0;
             nc.enviado = 0;
             const bill = await saveBillingTransaction(nc, { omitirStock: true });
+            if (bill.id) asegurarPdfComprobante(Number(bill.id));
             ncNumeracion = bill.numeracion_comprobante;
             await saveCheckNc(original.numeracion_comprobante, ncNumeracion);
             await executeQuery(db(), `UPDATE SolicitudesCorreccion SET nc_numeracion = @n WHERE id = @id`,
@@ -251,6 +253,7 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
             nuevo.impresion = 0;
             nuevo.enviado = 0;
             const bill = await saveBillingTransaction(nuevo, { omitirStock: true });
+            if (bill.id) asegurarPdfComprobante(Number(bill.id));
             nuevoNumeracion = bill.numeracion_comprobante;
             await executeQuery(db(), `UPDATE SolicitudesCorreccion SET nuevo_numeracion = @n WHERE id = @id`,
                 [{ name: 'n', value: nuevoNumeracion, type: sql.NVarChar }, { name: 'id', value: id, type: sql.Int }]);
