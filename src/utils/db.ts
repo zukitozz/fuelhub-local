@@ -352,7 +352,6 @@ import { toLocaleStorage } from './formats';
                     sqlRequestAbatecimientos.input('idAbastecimiento', sql.Int, id_abastecimiento);
                     await sqlRequestAbatecimientos.query(`Update DEMOSQL.dbo.Abastecimientos set estado = 1 where idAbastecimiento = @idAbastecimiento`);
                 await transaction.commit();
-                comprobante.id = Number(comprobanteId);
                 return comprobante;
             } catch (err) {
                 console.error("Error executing transaction:");
