@@ -1,6 +1,7 @@
 'use server';
 import { IComprobanteAdmin } from '@/interfaces';
 import { executeQuery, saveBillingTransaction } from '@/utils/db';
+import { generarPdfAlEmitir } from '@/utils/pdf-buzon';
 import { Session } from "next-auth";
 
 interface IComprobanteStoreResponse {
@@ -13,6 +14,8 @@ export async function saveBilling(comprobante: IComprobanteAdmin): Promise<IComp
     let message = `Ocurrió un error al crear el comprobante`
     try {
         const bill = await saveBillingTransaction(comprobante);
+        // Facturas y notas de credito: el PDF queda listo en pdf_bytes para que el facturador lo suba (en segundo plano)
+        if (bill.id) generarPdfAlEmitir(Number(bill.id), bill.tipo_comprobante);
         message = `Comprobante ${bill.numeracion_comprobante} creado coorrectamente`
         return {
             message,

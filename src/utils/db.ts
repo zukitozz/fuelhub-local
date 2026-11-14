@@ -352,6 +352,7 @@ import { toLocaleStorage } from './formats';
                     sqlRequestAbatecimientos.input('idAbastecimiento', sql.Int, id_abastecimiento);
                     await sqlRequestAbatecimientos.query(`Update DEMOSQL.dbo.Abastecimientos set estado = 1 where idAbastecimiento = @idAbastecimiento`);
                 await transaction.commit();
+                comprobante.id = Number(comprobanteId);
                 return comprobante;
             } catch (err) {
                 console.error("Error executing transaction:");
@@ -380,13 +381,16 @@ import { toLocaleStorage } from './formats';
         return { numeracion_comprobante: numeracion, pdf_bytes: bytes ? Buffer.from(bytes) : null };
     }
 
-    export async function saveComprobantePdfBytes(id: number, pdfBytes: Buffer): Promise<void> {
+    //Guarda el PDF solo mientras esta pendiente de subir a S3 (pdf_enviado = 0) y no tiene uno: pdf_bytes es un
+    //buzon temporal que vacia el facturador al subirlo. Devuelve true si lo guardo.
+    export async function saveComprobantePdfBytes(id: number, pdfBytes: Buffer): Promise<boolean> {
         config.database = process.env.DB_DATABASE_AUXILIAR || "";
         const pool = await sql.connect(config);
         const request = pool.request();
         request.input('id', sql.Int, id);
         request.input('pdf_bytes', sql.VarBinary(sql.MAX), pdfBytes);
-        await request.query(`UPDATE Comprobantes SET pdf_bytes = @pdf_bytes WHERE id = @id`);
+        const result = await request.query(`UPDATE Comprobantes SET pdf_bytes = @pdf_bytes WHERE id = @id AND ISNULL(pdf_enviado, 0) = 0 AND pdf_bytes IS NULL`);
+        return (result.rowsAffected[0] ?? 0) > 0;
     }
 
     export async function saveCierreTurnoTransaction(session: Session|null, total: number, soles: ICierreTurnoSoles, productos: ICierreTurnoDetalle[]): Promise<ICierreTurnoResponse>{
