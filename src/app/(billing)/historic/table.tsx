@@ -106,7 +106,7 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                         <td className="text-sm text-gray-900 font-light px-3 ">{item.turno}</td>
                         <td className="text-sm text-gray-900 font-light px-3 ">{item.usuario}</td>
                         <td className="text-sm text-gray-900 font-light px-3 ">
-                            <Link href={`/api/comprobante/${item.id}`} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded">PDF</Link>
+                            <a href={`/api/comprobante/${item.id}`} target="_blank" rel="noopener noreferrer" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1.5 px-2 rounded">PDF</a>
                         </td>
                         <td className="text-sm text-gray-900 font-light px-3 ">
                             {/* Una NC en espera no es un error: se envia sola cuando SUNAT acepta la boleta */}

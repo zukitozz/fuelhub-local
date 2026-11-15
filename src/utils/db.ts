@@ -368,6 +368,7 @@ import { toLocaleStorage } from './formats';
     }
     type ComprobantePdf = {
         numeracion_comprobante: string;
+        tipo_comprobante?: string;
         pdf_bytes: Buffer|null;
     }
     export async function getComprobantePdfBytes(id: number): Promise<ComprobantePdf> {
@@ -375,10 +376,10 @@ import { toLocaleStorage } from './formats';
         const pool = await sql.connect(config);
         const request = pool.request();
         request.input('id', sql.Int, id);
-        const result = await request.query(`SELECT numeracion_comprobante, pdf_bytes FROM Comprobantes WHERE id = @id`);
+        const result = await request.query(`SELECT numeracion_comprobante, tipo_comprobante, pdf_bytes FROM Comprobantes WHERE id = @id`);
         const bytes = result.recordset[0]?.pdf_bytes;
         const numeracion = result.recordset[0]?.numeracion_comprobante;
-        return { numeracion_comprobante: numeracion, pdf_bytes: bytes ? Buffer.from(bytes) : null };
+        return { numeracion_comprobante: numeracion, tipo_comprobante: result.recordset[0]?.tipo_comprobante, pdf_bytes: bytes ? Buffer.from(bytes) : null };
     }
 
     //Guarda el PDF solo mientras esta pendiente de subir a S3 (pdf_enviado = 0) y no tiene uno: pdf_bytes es un

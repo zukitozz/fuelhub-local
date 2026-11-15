@@ -27,7 +27,8 @@ export async function GET(
 
     const pdf = await generarPdfComprobante(comprobanteId);
     try {
-      await saveComprobantePdfBytes(comprobanteId, pdf);
+      // Solo facturas y notas de credito se guardan en pdf_bytes; las boletas se regeneran cada vez
+      if (storedPdf?.tipo_comprobante === '01' || storedPdf?.tipo_comprobante === '07') await saveComprobantePdfBytes(comprobanteId, pdf);
     } catch (saveError) {
       // No se debe romper la descarga del PDF si falla el guardado del histórico
       console.error("Error guardando pdf_bytes del comprobante:", saveError);
