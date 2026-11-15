@@ -15,9 +15,11 @@ interface EstadoNavegador {
   usos: number;
   paginasActivas: number;
   temporizador: ReturnType<typeof setTimeout> | null;
+  lanzando: Promise<Browser> | null;
+  cola: Promise<unknown>;
 }
 const g = globalThis as unknown as { __pdfNavegador?: EstadoNavegador };
-const estado: EstadoNavegador = (g.__pdfNavegador ??= { navegador: null, usos: 0, paginasActivas: 0, temporizador: null });
+const estado: EstadoNavegador = (g.__pdfNavegador ??= { navegador: null, usos: 0, paginasActivas: 0, temporizador: null, lanzando: null, cola: Promise.resolve() });
 
 async function cerrarNavegador() {
   const viejo = estado.navegador;
@@ -32,17 +34,23 @@ async function abrirPagina(): Promise<Page> {
     await cerrarNavegador();
   }
   if (!estado.navegador) {
-    const nuevo = await puppeteer.launch({
+    // Los pedidos simultaneos esperan el mismo lanzamiento: si cada uno abriera su Chromium, quedarian huerfanos
+    estado.lanzando ??= puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    nuevo.on('disconnected', () => { if (estado.navegador === nuevo) { estado.navegador = null; estado.usos = 0; } });
-    estado.navegador = nuevo;
+    }).then((nuevo) => {
+      nuevo.on('disconnected', () => { if (estado.navegador === nuevo) { estado.navegador = null; estado.usos = 0; } });
+      estado.navegador = nuevo;
+      return nuevo;
+    }).finally(() => { estado.lanzando = null; });
+    await estado.lanzando;
   }
+  const navegador = estado.navegador;
+  if (!navegador) throw new Error('No se pudo abrir el navegador para generar el PDF');
   estado.usos++;
   estado.paginasActivas++;
   try {
-    const page = await estado.navegador.newPage();
+    const page = await navegador.newPage();
     page.setDefaultTimeout(TIEMPO_PDF_MS);
     return page;
   } catch (error) {
@@ -60,7 +68,7 @@ async function liberarPagina(page: Page) {
 }
 
 /** Genera el PDF del comprobante con la plantilla del sistema (sin guardarlo). */
-export async function generarPdfComprobante(comprobanteId: number): Promise<Buffer> {
+async function construirPdf(comprobanteId: number): Promise<Buffer> {
     const comprobante = await obtieneComprobantePDF(comprobanteId);
 
     const qrText = `${process.env.NEXT_PUBLIC_RUC || ''}|${comprobante.TipoComprobante}|${comprobante.NumeracionComprobante}|${comprobante.TotalIgv}|${comprobante.TotalVenta}|${toLocaleOnlyDate(comprobante.FechaEmision)}|${comprobante.ReceptorRuc || '00000000'}`;
@@ -467,4 +475,11 @@ export async function generarPdfComprobante(comprobanteId: number): Promise<Buff
     } finally {
       await liberarPagina(page);
     }
+}
+
+/** Genera el PDF del comprobante. Un PDF a la vez en todo el proceso (ruta, clic y generador de fondo), para no saturar la PC. */
+export function generarPdfComprobante(comprobanteId: number): Promise<Buffer> {
+  const siguiente = estado.cola.then(() => construirPdf(comprobanteId), () => construirPdf(comprobanteId));
+  estado.cola = siguiente.catch(() => undefined);
+  return siguiente;
 }

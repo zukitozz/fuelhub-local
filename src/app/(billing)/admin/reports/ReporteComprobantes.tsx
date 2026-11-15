@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import useSWR from 'swr';
 import * as XLSX from 'xlsx';
-import Link from 'next/link';
 import { IoDownloadOutline } from "react-icons/io5";
 import { currencyFormat, toLocaleOnlyDate, toLocaleShow } from "@/utils";
 import { obtieneReporteComprobantes, obtieneReporteComprobantesExport } from "@/actions/reportes/get-reporte";
@@ -295,7 +294,7 @@ export const ReporteComprobantes = () => {
                                         {/* /api/comprobante/[id] genera el PDF al vuelo (o sirve el cacheado): a
                                             diferencia de item.url, no depende de que el envio a SUNAT/MiFact haya
                                             terminado, asi que siempre esta disponible (igual que en /historic) */}
-                                        <Link href={`/api/comprobante/${item.id}`} target="_blank" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-xs">PDF</Link>
+                                        <a href={`/api/comprobante/${item.id}`} target="_blank" rel="noopener noreferrer" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-xs">PDF</a>
                                     </td>
                                     <td className="px-4 py-3 truncate text-sm text-right font-semibold text-gray-900">{currencyFormat(item.total)}</td>
                                 </tr>
