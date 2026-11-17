@@ -1,6 +1,6 @@
 "use server";
 import { executeQuery } from '@/utils/db';
-import { IReporteCierreDiario, IReporteCierreDiarioConteo, IReporteCierreDiarioDetalle, IReporteCierreTurno, IReporteCierreTurnoProductos, IReporteComprobantes, IReporteDeclaracionMensual } from "@/interfaces";
+import { IReporteCierreDiario, IReporteCierreDiarioConteo, IReporteCierreDiarioDetalle, IReporteFacturaDespacho, IReporteCierreTurno, IReporteCierreTurnoProductos, IReporteComprobantes, IReporteDeclaracionMensual } from "@/interfaces";
 
 export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promise<IReporteCierreDiario> {
     const date: Date = new Date(fecha);
@@ -64,12 +64,28 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
             CASE when i.medida = 'GLL' then 1 else 0 END
         `;
 
+    // Facturas del dia que consolidan notas de despacho. Esas facturas no pertenecen a un turno (no las emite un
+    // grifero), asi que no salen del cierre: se buscan por la fecha en que se facturaron las notas.
+    const fechaFacturado = /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null;
+    const queryFacturasDespacho = `
+            select f.numeracion_comprobante as factura, r.razon_social as cliente, f.total as total_factura,
+                   COUNT(n.id) as notas, SUM(n.total) as total_notas
+            from Comprobantes n
+            inner join Comprobantes f on f.numeracion_comprobante = n.comprobante_nota_despacho and f.tipo_comprobante = '01'
+            left join Receptores r on r.id = f.ReceptorId
+            where n.tipo_comprobante = '50' and n.estado_nota_despacho = 1
+              and CAST(n.fecha_facturado_nota_despacho AS DATE) = '${fechaFacturado}'
+            group by f.numeracion_comprobante, r.razon_social, f.total
+            order by f.numeracion_comprobante
+        `;
+
     const db = process.env.DB_DATABASE_AUXILIAR||"";
-    const [detalle, conteos] = await Promise.all([
+    const [detalle, conteos, facturasDespacho] = await Promise.all([
         executeQuery<IReporteCierreDiarioDetalle[]>(db, query),
         executeQuery<IReporteCierreDiarioConteo[]>(db, queryConteo),
+        fechaFacturado ? executeQuery<IReporteFacturaDespacho[]>(db, queryFacturasDespacho) : Promise.resolve([] as IReporteFacturaDespacho[]),
     ]);
-    return { detalle, conteos };
+    return { detalle, conteos, facturasDespacho };
 }
 
 export async function obtieneReporteDeclaracionMensual(fecha: string): Promise<IReporteDeclaracionMensual[]> {

@@ -28,6 +28,9 @@ export const ReceptoresForm = ({ receptor }: Props) => {
     const handleChangeDireccion = (event: React.ChangeEvent<HTMLInputElement>) => {
         setFormValues({ ...formValues, direccion: event.target.value });
     };
+    const handleChangeCredito = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setFormValues({ ...formValues, credito_limite: event.target.value === '' ? null : Number(event.target.value) });
+    };
     const handleChangeCorreo = (event: React.ChangeEvent<HTMLInputElement>) => {
         setFormValues({ ...formValues, correo: event.target.value });
     };      
@@ -118,6 +121,19 @@ export const ReceptoresForm = ({ receptor }: Props) => {
                             name="correo"
                             defaultValue={ receptor?.correo }
                             onChange={ handleChangeCorreo }
+                        />
+                    </div>
+                    <div className='col-span-1'>
+                        <label htmlFor="credito_limite">Crédito para notas de despacho (S/)</label>
+                        <input
+                            className="px-5 py-2 border bg-gray-200 rounded w-full"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            name="credito_limite"
+                            placeholder="Vacío o 0 = sin crédito"
+                            defaultValue={ receptor?.credito_limite ?? '' }
+                            onChange={ handleChangeCredito }
                         />
                     </div>                     
                     <div className='col-span-2'>

@@ -24,7 +24,7 @@ export async function getReceptores(page: number, perPage: number, keyword?: str
     // 2. Aplicamos el filtro DENTRO del subquery para que ROW_NUMBER actúe sobre los datos filtrados
     const query = `
         SELECT * FROM (
-            SELECT id, numero_documento, tipo_documento, razon_social, direccion, correo, placa, 
+            SELECT id, numero_documento, tipo_documento, razon_social, direccion, correo, placa, credito_limite, 
                    ROW_NUMBER() OVER (ORDER BY id) AS RowNum 
             FROM Receptores 
             ${innerFilter}
@@ -67,7 +67,7 @@ export async function getReceptor(id: number): Promise<IReceptor> {
     try {
      const receptores = await executeQuery<IReceptor[]>(
         process.env.DB_DATABASE_AUXILIAR||"", 
-        `SELECT id,numero_documento,tipo_documento,razon_social,direccion,correo,placa FROM Receptores WHERE id = ${id}`
+        `SELECT id,numero_documento,tipo_documento,razon_social,direccion,correo,placa,credito_limite FROM Receptores WHERE id = ${id}`
     );
      return receptores[0] as IReceptor;
     } catch (error) {
