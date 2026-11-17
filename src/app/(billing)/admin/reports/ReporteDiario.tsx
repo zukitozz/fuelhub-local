@@ -7,7 +7,7 @@ import { IoDownloadOutline, IoCalendarOutline } from "react-icons/io5";
 
 import { obtieneReporteCierreDiarioDetallado } from '@/actions';
 import { currencyFormat, toLocaleOnlyDate } from "@/utils";
-import { IReporteCierreDiarioDetalle } from '@/interfaces';
+import { IReporteCierreDiarioDetalle, IReporteFacturaDespacho } from '@/interfaces';
 
 const fetcher = (fecha: string) => obtieneReporteCierreDiarioDetallado(fecha);
 
@@ -83,10 +83,15 @@ export const ReporteDiario = () => {
         [secciones]
     );
 
+    // Facturas de notas de despacho emitidas ese dia: se muestran aparte y no entran al total general (las notas de despacho
+    // tampoco entran, ver sumaAlTotal)
+    const facturasDespacho: IReporteFacturaDespacho[] = data?.facturasDespacho ?? [];
+    const totalFacturasDespacho = facturasDespacho.reduce((acc, f) => acc + Number(f.total_factura), 0);
+
     const handleDateChange = (e: ChangeEvent<HTMLInputElement>) => setDate(e.target.value);
 
     const exportToExcel = () => {
-        if (secciones.length === 0) return;
+        if (secciones.length === 0 && facturasDespacho.length === 0) return;
         const rows: (string | number)[][] = [];
         secciones.forEach((seccion, index) => {
             if (index > 0) rows.push([]);
@@ -111,6 +116,13 @@ export const ReporteDiario = () => {
         });
         rows.push([]);
         rows.push(['TOTAL GENERAL', '', '', '', Number(totalGeneral.toFixed(2))]);
+        if (facturasDespacho.length > 0) {
+            rows.push([]);
+            rows.push(['FACTURAS DE NOTAS DE DESPACHO']);
+            rows.push(['FACTURA', 'CLIENTE', 'NOTAS', '', 'SOLES']);
+            facturasDespacho.forEach(f => rows.push([f.factura, f.cliente ?? '', f.notas, '', Number(Number(f.total_factura).toFixed(2))]));
+            rows.push(['TOTAL', '', facturasDespacho.reduce((acc, f) => acc + f.notas, 0), '', Number(totalFacturasDespacho.toFixed(2))]);
+        }
 
         const worksheet = XLSX.utils.aoa_to_sheet(rows);
         worksheet['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
@@ -158,7 +170,7 @@ export const ReporteDiario = () => {
             </div>
 
             {/* Tablas por sección */}
-            {secciones.length === 0 ? (
+            {secciones.length === 0 && facturasDespacho.length === 0 ? (
                 <p className="text-sm text-gray-500 text-center py-8 border rounded-xl">
                     No hay movimientos registrados para la fecha seleccionada.
                 </p>
@@ -215,6 +227,36 @@ export const ReporteDiario = () => {
                                 <td className="px-4 py-2 text-right font-bold text-blue-700">{currencyFormat(totalGeneral)}</td>
                             </tr>
                         </tfoot>
+                    </table>
+                </div>
+            )}
+
+            {/* Facturas que consolidan notas de despacho emitidas ese dia (no pasan por turno) */}
+            {facturasDespacho.length > 0 && (
+                <div className="overflow-x-auto border rounded-xl mt-4">
+                    <table className="min-w-full text-sm">
+                        <tbody className="divide-y divide-gray-100">
+                            <tr className="bg-gray-100/70">
+                                <th scope="rowgroup" className="px-4 py-1.5 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Facturas de notas de despacho</th>
+                                <th scope="col" className="px-4 py-1.5 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wider">Cliente</th>
+                                <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Notas</th>
+                                <th scope="col" className="px-4 py-1.5 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wider">Soles</th>
+                            </tr>
+                            {facturasDespacho.map(f => (
+                                <tr key={f.factura} className="hover:bg-blue-50/50 transition-colors">
+                                    <td className="px-4 py-1.5 whitespace-nowrap font-medium text-gray-900">{f.factura}</td>
+                                    <td className="px-4 py-1.5 text-gray-600">{f.cliente ?? ''}</td>
+                                    <td className="px-4 py-1.5 whitespace-nowrap text-right text-gray-600">{f.notas}</td>
+                                    <td className="px-4 py-1.5 whitespace-nowrap text-right font-semibold text-gray-900">{currencyFormat(Number(f.total_factura))}</td>
+                                </tr>
+                            ))}
+                            <tr className="bg-gray-50 font-bold border-t border-gray-300">
+                                <td className="px-4 py-1.5 text-gray-900 uppercase">Total</td>
+                                <td className="px-4 py-1.5"></td>
+                                <td className="px-4 py-1.5 text-right text-gray-900">{facturasDespacho.reduce((acc, f) => acc + f.notas, 0)}</td>
+                                <td className="px-4 py-1.5 text-right text-blue-700">{currencyFormat(totalFacturasDespacho)}</td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             )}

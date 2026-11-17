@@ -1,10 +1,14 @@
 import { auth } from "@/auth.config";
 import { AbastecimientoGrid, Title } from "@/components";
 import { toIsoString } from "@/utils";
+import { Constants } from "@/utils/constants";
+import { redirect } from "next/navigation";
 
 export default async function Home() {
 
   const session = await auth();
+  // El administrador no emite ventas: solo modifica comprobantes ya emitidos (desde el historico)
+  if (session?.user?.rol === Constants.ROL.ADMIN_ROLE) redirect('/historic');
 
   return (
     <>

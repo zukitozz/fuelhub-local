@@ -1,3 +1,4 @@
+export * from './AvisoCredito';
 export * from './Direccion';
 export * from './FechaEmision';
 export * from './NumeroDocumento';

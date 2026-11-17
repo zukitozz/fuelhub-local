@@ -21,9 +21,19 @@ export interface IReporteCierreDiarioConteo {
     ventas: number;
 }
 
+// Factura emitida ese dia que consolida notas de despacho (la emite el administrador/servidor, sin turno)
+export interface IReporteFacturaDespacho {
+    factura: string;
+    cliente: string | null;
+    notas: number;
+    total_notas: number;
+    total_factura: number;
+}
+
 export interface IReporteCierreDiario {
     detalle: IReporteCierreDiarioDetalle[];
     conteos: IReporteCierreDiarioConteo[];
+    facturasDespacho: IReporteFacturaDespacho[];
 }
 
 //Una fila por item del comprobante: los importes salen del item (valor_venta / igv_venta),

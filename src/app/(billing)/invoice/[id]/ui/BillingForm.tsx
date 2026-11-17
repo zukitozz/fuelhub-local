@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { getSerieActivaRetroactiva, saveBilling, validatePrevBilling } from "@/actions";
 import { useOrderAbastecimientoStore } from "@/store";
 import { Constants, initialBillingForm, notify, numbersToLetters } from "@/utils";
-import { Direccion, FechaEmision, NumeroDocumento, Placa, RazonSocial, TipoComprobanteSelector, TipoPago } from "./form-values";
+import { AvisoCredito, Direccion, FechaEmision, NumeroDocumento, Placa, RazonSocial, TipoComprobanteSelector, TipoPago } from "./form-values";
 import { Comprobante } from "@/model";
 import { IBillingForm, IComprobanteAdminItem, IOrderItem, IReceptor } from "@/interfaces";
 
@@ -253,6 +253,7 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
                     <Placa formValues={formValues} setFormValues={setFormValues}/>
                     <RazonSocial formValues={formValues} setFormValues={setFormValues}/>
                     <Direccion formValues={formValues} setFormValues={setFormValues}/>
+                    <AvisoCredito formValues={formValues} total={total}/>
                     <FechaEmision formValues={formValues} setFormValues={setFormValues} permiteRetroactiva={permiteFechaRetroactiva} />
                     <TipoPago total={total} formValues={formValues} setFormValues={setFormValues} />
 

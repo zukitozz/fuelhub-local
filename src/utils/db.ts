@@ -3,6 +3,7 @@ import { esClientesVarios, RAZON_SOCIAL_CLIENTES_VARIOS } from './clientes-vario
 import { ICierreTurnoDetalle, ICierreTurnoSoles, IComprobanteAdmin, ICierreTurnoResponse, ICompraForm, IDbResponse, IEditarCierreTurno, IProduct, IProductoStoreResponse, ISerie } from '@/interfaces';
 import sql, { ConnectionPool, ISqlTypeFactoryWithLength, ISqlTypeFactoryWithNoParams, Transaction } from 'mssql';
 import { Constants } from './constants';
+import { calculaSaldoCredito, sqlSaldoCredito } from './credito';
 import { Session } from 'next-auth';
 import { toLocaleStorage } from './formats';
 
@@ -49,7 +50,9 @@ import { toLocaleStorage } from './formats';
 
     // omitirStock: las correcciones de un comprobante (nota de credito + comprobante nuevo) no deben mover el
     // stock de tienda: la mercaderia se vendio una sola vez y ya se desconto con el comprobante original.
-    export async function saveBillingTransaction(comprobante: IComprobanteAdmin, opciones: { omitirStock?: boolean } = {}): Promise<IComprobanteAdmin> {
+    // esCorreccion: el comprobante nuevo que reemplaza a otro corregido; es lo unico que un administrador puede emitir
+    // ademas de notas de credito (un administrador modifica comprobantes, no genera ventas nuevas).
+    export async function saveBillingTransaction(comprobante: IComprobanteAdmin, opciones: { omitirStock?: boolean; esCorreccion?: boolean } = {}): Promise<IComprobanteAdmin> {
         config.database = process.env.DB_DATABASE_AUXILIAR||"";
         try {
             const { 
@@ -112,6 +115,9 @@ import { toLocaleStorage } from './formats';
                     //guardado en BD, para que no se pueda saltar ocultando el boton en la pantalla.
                     if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_CREDITO && usuarioEmisor.recordset[0]?.rol !== Constants.ROL.ADMIN_ROLE) {
                         throw new Error('Solo un administrador puede emitir notas de crédito');
+                    }
+                    if (usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE && tipo_comprobante !== Constants.TIPO_COMPROBANTE.NOTA_CREDITO && !opciones.esCorreccion) {
+                        throw new Error('Un administrador no puede emitir comprobantes nuevos: solo puede modificar los ya emitidos');
                     }
                     const codigoProposito = usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE
                         ? Constants.CODIGO_PROPOSITO.ADMIN
@@ -225,6 +231,20 @@ import { toLocaleStorage } from './formats';
                         sqlTipoRequest.input('id', sql.Int, id_receptor);
                         sqlTipoRequest.input('tipo', sql.NVarChar, Constants.TIPO_DOCUMENTO.DNI_SUNAT);
                         await sqlTipoRequest.query(`UPDATE Receptores set tipo_documento = @tipo where id = @id and tipo_documento <> @tipo`);
+                    }
+                    //Las notas de despacho solo se emiten a clientes con credito y mientras les quede saldo.
+                    //Se valida dentro de la transaccion y bloqueando al cliente, para que dos emisiones a la vez no se pasen del credito.
+                    if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_DESPACHO) {
+                        const sqlCreditoRequest = new sql.Request(transaction);
+                        sqlCreditoRequest.input('receptorId', sql.Int, id_receptor);
+                        const creditoResult = await sqlCreditoRequest.query(sqlSaldoCredito(true));
+                        const credito = calculaSaldoCredito(creditoResult.recordset[0]?.limite, creditoResult.recordset[0]?.consumido);
+                        if (!credito.habilitado) {
+                            throw new Error('El cliente no tiene crédito habilitado para notas de despacho');
+                        }
+                        if (Number(total) > credito.saldo + 0.001) {
+                            throw new Error(`Crédito insuficiente: saldo S/ ${credito.saldo.toFixed(2)}, la nota de despacho es de S/ ${Number(total).toFixed(2)}`);
+                        }
                     }
                     //Insertar comprobante
                     const sqlRequest = new sql.Request(transaction);

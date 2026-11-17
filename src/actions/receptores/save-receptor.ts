@@ -6,9 +6,12 @@ import { executeQuery } from '@/utils/db';
 // (ej. "D'ONOFRIO") y null/undefined se guardan vacios en vez del texto 'null'.
 const texto = (valor?: string | null) => String(valor ?? '').trim().replace(/'/g, "''");
 
-export async function saveReceptor({ id, numero_documento, tipo_documento, razon_social, direccion, correo, placa }: IReceptor): Promise<{ status: boolean, message: string }> {
+// Credito en soles para notas de despacho: vacio o 0 = sin credito (NULL)
+const creditoSql = (valor?: number | string | null) => { const n = Number(valor); return Number.isFinite(n) && n > 0 ? n.toFixed(2) : 'NULL'; };
+
+export async function saveReceptor({ id, numero_documento, tipo_documento, razon_social, direccion, correo, placa, credito_limite }: IReceptor): Promise<{ status: boolean, message: string }> {
     const db = process.env.DB_DATABASE_AUXILIAR||"";
-    const campos = `numero_documento = '${texto(numero_documento)}', tipo_documento = '${texto(tipo_documento)}', razon_social = '${texto(razon_social)}', direccion = '${texto(direccion)}', correo = '${texto(correo)}', placa = '${texto(placa)}'`;
+    const campos = `numero_documento = '${texto(numero_documento)}', tipo_documento = '${texto(tipo_documento)}', razon_social = '${texto(razon_social)}', direccion = '${texto(direccion)}', correo = '${texto(correo)}', placa = '${texto(placa)}', credito_limite = ${creditoSql(credito_limite)}`;
     try {
         if (id) {
             await executeQuery(db, `UPDATE Receptores set ${campos} where id = ${Number(id)}`);
@@ -26,7 +29,7 @@ export async function saveReceptor({ id, numero_documento, tipo_documento, razon
             await executeQuery(db, `UPDATE Receptores set ${campos}, estado = 1 where id = ${Number(existente.id)}`);
             return { status: true, message: 'Cliente reactivado' };
         }
-        await executeQuery(db, `INSERT into Receptores (numero_documento, tipo_documento, razon_social, direccion, correo, placa) values ('${texto(numero_documento)}', '${texto(tipo_documento)}', '${texto(razon_social)}', '${texto(direccion)}', '${texto(correo)}', '${texto(placa)}')`);
+        await executeQuery(db, `INSERT into Receptores (numero_documento, tipo_documento, razon_social, direccion, correo, placa, credito_limite) values ('${texto(numero_documento)}', '${texto(tipo_documento)}', '${texto(razon_social)}', '${texto(direccion)}', '${texto(correo)}', '${texto(placa)}', ${creditoSql(credito_limite)})`);
         return { status: true, message: 'Cliente creado' };
     } catch (error) {
         console.error("Error saveReceptor:", error);
