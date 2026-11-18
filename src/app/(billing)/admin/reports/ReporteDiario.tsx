@@ -19,7 +19,7 @@ interface ISeccion {
     ventas: number;
     cantidad: number;
     soles: number;
-    // Nota de despacho y Serafin no son cobro, asi que no entran al total general
+    // Nota de despacho, Serafin y ventas al credito no son cobro, asi que no entran al total general
     sumaAlTotal: boolean;
 }
 
@@ -54,15 +54,17 @@ export const ReporteDiario = () => {
     const secciones = useMemo(() => {
         const filas = data?.detalle ?? [];
         const conteos = data?.conteos ?? [];
-        const combustibles = filas.filter(f => f.medida === 'GLL');
-        const otros = filas.filter(f => f.medida !== 'GLL');
+        // Las ventas al credito se muestran aparte (combustible y otros juntos); no se mezclan con ventas ni otros
+        const credito = filas.filter(f => f.tipo === 'CREDITO');
+        const combustibles = filas.filter(f => f.medida === 'GLL' && f.tipo !== 'CREDITO');
+        const otros = filas.filter(f => f.medida !== 'GLL' && f.tipo !== 'CREDITO');
 
         // Comprobantes de combustible del tipo indicado
         const ventasCombustible = (tipo: IReporteCierreDiarioDetalle['tipo']) =>
             conteos.find(c => c.tipo === tipo && c.es_combustible === 1)?.ventas ?? 0;
         // Un comprobante pertenece a un solo tipo, asi que sumar entre tipos no duplica
         const ventasOtros = conteos
-            .filter(c => c.es_combustible === 0)
+            .filter(c => c.es_combustible === 0 && c.tipo !== 'CREDITO')
             .reduce((acc, c) => acc + c.ventas, 0);
 
         const resultado: ISeccion[] = [
@@ -70,6 +72,7 @@ export const ReporteDiario = () => {
             construyeSeccion('Nota de despacho', combustibles.filter(f => f.tipo === 'DESPACHO'), ventasCombustible('DESPACHO'), false),
             construyeSeccion('Serafin', combustibles.filter(f => f.tipo === 'SERAFIN'), ventasCombustible('SERAFIN'), false),
             construyeSeccion('Otros productos', otros, ventasOtros),
+            construyeSeccion('Ventas al crédito', credito, conteos.filter(c => c.tipo === 'CREDITO').reduce((acc, c) => acc + c.ventas, 0), false),
         ];
 
         return resultado.filter(seccion => seccion.filas.length > 0);

@@ -9,4 +9,6 @@ export interface IBillingForm {
     tarjeta: number|string;
     yape: number|string;
     fechaEmision: string;
+    // Venta al credito (factura/boleta a un cliente con credito)
+    esCredito?: boolean;
 }

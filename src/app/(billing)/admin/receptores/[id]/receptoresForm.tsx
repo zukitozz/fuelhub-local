@@ -1,8 +1,10 @@
 "use client";
 import { Title } from "@/components";
-import { deleteReceptor, saveReceptor } from '@/actions';
+import { deleteReceptor, saveReceptor, obtieneSaldoCreditoPorDocumento, obtieneAbonosCredito, registrarAbonoCredito } from '@/actions';
+import type { IAbonoCredito } from '@/actions/receptores/credito';
+import type { ISaldoCredito } from '@/utils/credito';
 import { notify, notifyConfirm } from '@/utils';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { IReceptor } from '@/interfaces';
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -35,6 +37,28 @@ export const ReceptoresForm = ({ receptor }: Props) => {
         setFormValues({ ...formValues, correo: event.target.value });
     };      
     const [isProcessing, setIsProcessing] = useState(false);
+    // Credito: saldo y abonos (pagos del cliente que liberan credito)
+    const [saldo, setSaldo] = useState<ISaldoCredito | null>(null);
+    const [abonos, setAbonos] = useState<IAbonoCredito[]>([]);
+    const [montoAbono, setMontoAbono] = useState('');
+    const [notaAbono, setNotaAbono] = useState('');
+    const cargarCredito = async () => {
+        if (receptor.id === 0) return;
+        setSaldo(await obtieneSaldoCreditoPorDocumento(receptor.numero_documento));
+        setAbonos(await obtieneAbonosCredito(receptor.id));
+    };
+    useEffect(() => { cargarCredito(); }, [receptor.id]);
+    const handlerAbono = async () => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+        try {
+            const { status, message } = await registrarAbonoCredito(receptor.id, Number(montoAbono), notaAbono);
+            notify({ message, type: status ? 'success' : 'error' });
+            if (status) { setMontoAbono(''); setNotaAbono(''); await cargarCredito(); }
+        } finally {
+            setIsProcessing(false);
+        }
+    };
     const handlerProcessBilling = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (isProcessing) return;
@@ -146,6 +170,23 @@ export const ReceptoresForm = ({ receptor }: Props) => {
                             onChange={ handleChangeDireccion }
                         />
                     </div>                   
+                    {!newProduct && saldo?.habilitado && (
+                        <div className="col-span-2 border rounded p-3 bg-blue-50">
+                            <p className="font-semibold">
+                                Saldo de crédito: S/ {saldo.saldo.toFixed(2)} (crédito S/ {saldo.limite.toFixed(2)}, ventas al crédito S/ {saldo.consumido.toFixed(2)}, abonos S/ {saldo.abonado.toFixed(2)})
+                            </p>
+                            <div className="grid grid-cols-5 gap-2 mt-2">
+                                <input className="col-span-1 px-3 py-2 border bg-white rounded" type="number" min="0" step="0.01" placeholder="Abono S/" value={montoAbono} onChange={(e) => setMontoAbono(e.target.value)} />
+                                <input className="col-span-3 px-3 py-2 border bg-white rounded" type="text" maxLength={200} placeholder="Observación (opcional)" value={notaAbono} onChange={(e) => setNotaAbono(e.target.value)} />
+                                <button type="button" className="col-span-1 btn-primary px-3 py-2 disabled:opacity-50" disabled={isProcessing || !montoAbono} onClick={handlerAbono}>Registrar abono</button>
+                            </div>
+                            {abonos.length > 0 && (
+                                <ul className="mt-2 text-sm text-gray-700">
+                                    {abonos.map(a => <li key={a.id}>{a.fecha} — S/ {Number(a.monto).toFixed(2)}{a.observacion ? ` — ${a.observacion}` : ''}</li>)}
+                                </ul>
+                            )}
+                        </div>
+                    )}
                     <div className="col-span-2 flex gap-3 mt-3">
                         <button className={`btn-primary px-5 py-2 flex-1 disabled:opacity-50`} disabled={isProcessing} type="submit">
                             { newProduct?'Crear cliente':'Editar cliente'}

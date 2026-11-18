@@ -14,12 +14,14 @@ export async function obtieneCierreTurno(usuarioId: string): Promise<Props> {
     
     const queryProductos = `
             select i.descripcion as producto, i.medida as medida, i.codigo_producto as codigo, 
-            sum(CASE when tipo_comprobante in ('01','03','52') then i.cantidad_venta else 0 END) as total_cantidad, 
+            sum(CASE when tipo_comprobante in ('01','03','52') and ISNULL(c.es_credito,0) = 0 then i.cantidad_venta else 0 END) as total_cantidad, 
             sum(CASE when tipo_comprobante = '50' then i.cantidad_venta else 0 END) as despacho_cantidad, 
             sum(CASE when tipo_comprobante = '51' then i.cantidad_venta else 0 END) as calibracion_cantidad, 
-            sum(CASE when tipo_comprobante in ('01','03','52') then i.precio_venta else 0 END) as total_soles, 
+            sum(CASE when tipo_comprobante in ('01','03','52') and ISNULL(c.es_credito,0) = 0 then i.precio_venta else 0 END) as total_soles, 
             sum(CASE when tipo_comprobante = '50' then i.precio_venta else 0 END) as despacho_soles, 
-            sum(CASE when tipo_comprobante = '51' then i.precio_venta else 0 END) as calibracion_soles 
+            sum(CASE when tipo_comprobante = '51' then i.precio_venta else 0 END) as calibracion_soles,
+            sum(CASE when tipo_comprobante in ('01','03') and c.es_credito = 1 then i.cantidad_venta else 0 END) as credito_cantidad,
+            sum(CASE when tipo_comprobante in ('01','03') and c.es_credito = 1 then i.precio_venta else 0 END) as credito_soles
             from Comprobantes c 
             inner join Items i on c.id = i.ComprobanteId 
             where CierreturnoId is null and UsuarioId = ${usuarioId} 
@@ -33,7 +35,7 @@ export async function obtieneCierreTurno(usuarioId: string): Promise<Props> {
         process.env.DB_DATABASE_AUXILIAR||"", 
         `
             select sum(pago_efectivo) as efectivo, sum(pago_tarjeta) as tarjeta, sum(pago_yape) as yape 
-            from Comprobantes where CierreturnoId is null and tipo_comprobante in ('01','03','52') and UsuarioId = ${usuarioId}
+            from Comprobantes where CierreturnoId is null and tipo_comprobante in ('01','03','52') and ISNULL(es_credito,0) = 0 and UsuarioId = ${usuarioId}
         `
     );
     const depositos = await executeQuery<IDepositos[]>(
@@ -74,7 +76,7 @@ export async function obtieneHistoricoCierres(usuarioId: string): Promise<ICierr
             const detalle = await executeQuery<ICierreTurnoDetalle[]>(
                 process.env.DB_DATABASE_AUXILIAR||"",
                 `
-                    select codigo,producto,medida,total_cantidad,total_soles,calibracion_cantidad,calibracion_soles,despacho_cantidad,despacho_soles from Cierreturnosdetalle where CierreturnoId = ${cierre.id};
+                    select codigo,producto,medida,total_cantidad,total_soles,calibracion_cantidad,calibracion_soles,despacho_cantidad,despacho_soles,ISNULL(credito_cantidad,0) as credito_cantidad,ISNULL(credito_soles,0) as credito_soles from Cierreturnosdetalle where CierreturnoId = ${cierre.id};
                 `
             );
             cierre.detalle = detalle;
@@ -125,7 +127,7 @@ export async function obtieneCierresPorFecha(fecha: string): Promise<ICierreTurn
             const detalle = await executeQuery<ICierreTurnoDetalle[]>(
                 process.env.DB_DATABASE_AUXILIAR||"",
                 `
-                    select codigo,producto,medida,total_cantidad,total_soles,calibracion_cantidad,calibracion_soles,despacho_cantidad,despacho_soles from Cierreturnosdetalle where CierreturnoId = ${cierre.id};
+                    select codigo,producto,medida,total_cantidad,total_soles,calibracion_cantidad,calibracion_soles,despacho_cantidad,despacho_soles,ISNULL(credito_cantidad,0) as credito_cantidad,ISNULL(credito_soles,0) as credito_soles from Cierreturnosdetalle where CierreturnoId = ${cierre.id};
                 `
             );
             cierre.detalle = detalle;

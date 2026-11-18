@@ -44,6 +44,7 @@ export class Comprobante implements IComprobanteAdmin{
     producto_precio: number| null;
     ruc: string;
     enviado: number;
+    es_credito?: boolean;
     estado_nota_despacho: string|null;
     comprobante_nota_despacho: string|null;
     fecha_facturado_nota_despacho: string|null;

@@ -18,13 +18,14 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
                 cross apply (values
                     ('VENTA', ctd.total_cantidad, ctd.total_soles),
                     ('DESPACHO', ctd.despacho_cantidad, ctd.despacho_soles),
-                    ('SERAFIN', ctd.calibracion_cantidad, ctd.calibracion_soles)
+                    ('SERAFIN', ctd.calibracion_cantidad, ctd.calibracion_soles),
+                    ('CREDITO', ISNULL(ctd.credito_cantidad, 0), ISNULL(ctd.credito_soles, 0))
                 ) m(tipo, cantidad, soles)
                 where CAST(d.fecha AS DATE) = '${nextDayString}'
             ),
             conteo as (
                 select i.codigo_producto as codigo, i.descripcion as producto,
-                CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END as tipo,
+                CASE when c.es_credito = 1 and c.tipo_comprobante in ('01','03') then 'CREDITO' when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END as tipo,
                 COUNT(distinct c.id) as ventas
                 from Comprobantes c
                 inner join Items i on c.id = i.ComprobanteId
@@ -32,7 +33,7 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
                 inner join Cierredias d on t.CierrediaId = d.id
                 where CAST(d.fecha AS DATE) = '${nextDayString}' and c.tipo_comprobante in ('01','03','50','51','52')
                 group by i.codigo_producto, i.descripcion,
-                CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END
+                CASE when c.es_credito = 1 and c.tipo_comprobante in ('01','03') then 'CREDITO' when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END
             )
             select agrupado.codigo, agrupado.producto, agrupado.medida, agrupado.tipo,
             ISNULL(conteo.ventas, 0) as ventas, agrupado.volumen, agrupado.soles, p.precio
@@ -51,7 +52,7 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
     // llevar varios productos y se contaria una vez por cada uno.
     const queryConteo = `
             select
-            CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END as tipo,
+            CASE when c.es_credito = 1 and c.tipo_comprobante in ('01','03') then 'CREDITO' when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END as tipo,
             CASE when i.medida = 'GLL' then 1 else 0 END as es_combustible,
             COUNT(distinct c.id) as ventas
             from Comprobantes c
@@ -60,7 +61,7 @@ export async function obtieneReporteCierreDiarioDetallado(fecha: string): Promis
             inner join Cierredias d on t.CierrediaId = d.id
             where CAST(d.fecha AS DATE) = '${nextDayString}' and c.tipo_comprobante in ('01','03','50','51','52')
             group by
-            CASE when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END,
+            CASE when c.es_credito = 1 and c.tipo_comprobante in ('01','03') then 'CREDITO' when c.tipo_comprobante = '50' then 'DESPACHO' when c.tipo_comprobante = '51' then 'SERAFIN' else 'VENTA' END,
             CASE when i.medida = 'GLL' then 1 else 0 END
         `;
 

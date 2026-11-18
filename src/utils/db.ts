@@ -232,20 +232,36 @@ import { toLocaleStorage } from './formats';
                         sqlTipoRequest.input('tipo', sql.NVarChar, Constants.TIPO_DOCUMENTO.DNI_SUNAT);
                         await sqlTipoRequest.query(`UPDATE Receptores set tipo_documento = @tipo where id = @id and tipo_documento <> @tipo`);
                     }
-                    //Las notas de despacho solo se emiten a clientes con credito y mientras les quede saldo.
-                    //Se valida dentro de la transaccion y bloqueando al cliente, para que dos emisiones a la vez no se pasen del credito.
-                    if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_DESPACHO) {
-                        const sqlCreditoRequest = new sql.Request(transaction);
-                        sqlCreditoRequest.input('receptorId', sql.Int, id_receptor);
-                        const creditoResult = await sqlCreditoRequest.query(sqlSaldoCredito(true));
-                        const credito = calculaSaldoCredito(creditoResult.recordset[0]?.limite, creditoResult.recordset[0]?.consumido);
-                        if (!credito.habilitado) {
-                            throw new Error('El cliente no tiene crédito habilitado para notas de despacho');
-                        }
-                        if (Number(total) > credito.saldo + 0.001) {
-                            throw new Error(`Crédito insuficiente: saldo S/ ${credito.saldo.toFixed(2)}, la nota de despacho es de S/ ${Number(total).toFixed(2)}`);
+                    //Venta al credito: solo facturas y boletas, a un cliente con credito y con saldo suficiente. Se valida dentro de
+                    //la transaccion y bloqueando al cliente, para que dos ventas a la vez no se pasen del credito. La nota de credito
+                    //hereda la marca del comprobante que afecta (restituye credito). En una correccion el comprobante nuevo hereda la
+                    //marca del original y no se vuelve a validar el saldo (ya se consumio con el original).
+                    let esCredito = 0;
+                    if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_CREDITO && numeracion_documento_afectado) {
+                        const sqlAfectadoRequest = new sql.Request(transaction);
+                        sqlAfectadoRequest.input('afectado', sql.NVarChar, numeracion_documento_afectado);
+                        const afectado = await sqlAfectadoRequest.query(`SELECT TOP 1 ISNULL(es_credito, 0) AS es_credito FROM Comprobantes WHERE numeracion_comprobante = @afectado`);
+                        esCredito = afectado.recordset[0]?.es_credito ? 1 : 0;
+                    } else if (comprobante.es_credito && (tipo_comprobante === Constants.TIPO_COMPROBANTE.FACTURA || tipo_comprobante === Constants.TIPO_COMPROBANTE.BOLETA)) {
+                        esCredito = 1;
+                        if (!opciones.esCorreccion) {
+                            if (esClientesVarios(Receptor.numero_documento)) {
+                                throw new Error('Una venta al crédito necesita un cliente identificado');
+                            }
+                            const sqlCreditoRequest = new sql.Request(transaction);
+                            sqlCreditoRequest.input('receptorId', sql.Int, id_receptor);
+                            const creditoResult = await sqlCreditoRequest.query(sqlSaldoCredito(true));
+                            const credito = calculaSaldoCredito(creditoResult.recordset[0]?.limite, creditoResult.recordset[0]?.consumido, creditoResult.recordset[0]?.abonado);
+                            if (!credito.habilitado) {
+                                throw new Error('El cliente no tiene crédito habilitado');
+                            }
+                            if (Number(total) > credito.saldo + 0.001) {
+                                throw new Error(`Crédito insuficiente: saldo S/ ${credito.saldo.toFixed(2)}, la venta es de S/ ${Number(total).toFixed(2)}`);
+                            }
                         }
                     }
+                    //Una venta al credito no se cobra en el turno: no suma a efectivo/tarjeta/yape del grifero
+                    const cobraEnTurno = !(esCredito && tipo_comprobante !== Constants.TIPO_COMPROBANTE.NOTA_CREDITO);
                     //Insertar comprobante
                     const sqlRequest = new sql.Request(transaction);
                     sqlRequest.input('tipo_comprobante', sql.NVarChar, tipo_comprobante);
@@ -273,9 +289,10 @@ import { toLocaleStorage } from './formats';
                     sqlRequest.input('tiempo_abastecimiento', sql.Int, tiempo_abastecimiento);
                     sqlRequest.input('volumen_tanque', sql.Float, volumen_tanque);
                     sqlRequest.input('comentario', sql.NVarChar, comentario);
-                    sqlRequest.input('pago_tarjeta', sql.Float, tarjeta);
-                    sqlRequest.input('pago_efectivo', sql.Float, efectivo);
-                    sqlRequest.input('pago_yape', sql.Float, yape);
+                    sqlRequest.input('pago_tarjeta', sql.Float, cobraEnTurno ? tarjeta : 0);
+                    sqlRequest.input('pago_efectivo', sql.Float, cobraEnTurno ? efectivo : 0);
+                    sqlRequest.input('pago_yape', sql.Float, cobraEnTurno ? yape : 0);
+                    sqlRequest.input('es_credito', sql.Bit, esCredito ? 1 : 0);
                     sqlRequest.input('placa', sql.NVarChar, placa);
                     sqlRequest.input('billete', sql.Float, billete);
                     sqlRequest.input('producto_precio', sql.Float, producto_precio);
@@ -302,7 +319,7 @@ import { toLocaleStorage } from './formats';
                             placa, billete, producto_precio, ruc, enviado, 
                             estado_nota_despacho, comprobante_nota_despacho, fecha_facturado_nota_despacho, 
                             ReceptorId, UsuarioId, CierreTurnoId, fecha_hora, 
-                            gravadas, igv, total, impresion, IslaId
+                            gravadas, igv, total, impresion, IslaId, es_credito
                         ) VALUES (@tipo_comprobante, @numeracion_comprobante, @fecha_emision, @tipo_moneda, @tipo_operacion, @tipo_nota,
                             @tipo_documento_afectado, @fecha_documento_afectado, @numeracion_documento_afectado,
                             @motivo_documento_afectado, @gravadas, @igv, @total, @monto_letras,
@@ -312,7 +329,7 @@ import { toLocaleStorage } from './formats';
                             @placa, @billete, @producto_precio, @ruc, @enviado, 
                             @estado_nota_despacho, @comprobante_nota_despacho, @fecha_facturado_nota_despacho,
                             @ReceptorId, @UsuarioId, @CierreTurnoId, @fecha_hora, 
-                            @gravadas, @igv, @total, @impresion, @IslaId
+                            @gravadas, @igv, @total, @impresion, @IslaId, @es_credito
                         ); SELECT SCOPE_IDENTITY() AS id;`
                     const result = await sqlRequest.query(query_insert);
                     const comprobanteId = result.recordset[0]?.id;
@@ -434,12 +451,14 @@ import { toLocaleStorage } from './formats';
                 const reqProductos = new sql.Request(transaction);
                 const productosActuales = (await reqProductos.query(`
                     select i.descripcion as producto, i.medida as medida, i.codigo_producto as codigo,
-                    sum(CASE when tipo_comprobante in ('01','03','52') then i.cantidad_venta else 0 END) as total_cantidad,
+                    sum(CASE when tipo_comprobante in ('01','03','52') and ISNULL(c.es_credito,0) = 0 then i.cantidad_venta else 0 END) as total_cantidad,
                     sum(CASE when tipo_comprobante = '50' then i.cantidad_venta else 0 END) as despacho_cantidad,
                     sum(CASE when tipo_comprobante = '51' then i.cantidad_venta else 0 END) as calibracion_cantidad,
-                    sum(CASE when tipo_comprobante in ('01','03','52') then i.precio_venta else 0 END) as total_soles,
+                    sum(CASE when tipo_comprobante in ('01','03','52') and ISNULL(c.es_credito,0) = 0 then i.precio_venta else 0 END) as total_soles,
                     sum(CASE when tipo_comprobante = '50' then i.precio_venta else 0 END) as despacho_soles,
-                    sum(CASE when tipo_comprobante = '51' then i.precio_venta else 0 END) as calibracion_soles
+                    sum(CASE when tipo_comprobante = '51' then i.precio_venta else 0 END) as calibracion_soles,
+                    sum(CASE when tipo_comprobante in ('01','03') and c.es_credito = 1 then i.cantidad_venta else 0 END) as credito_cantidad,
+                    sum(CASE when tipo_comprobante in ('01','03') and c.es_credito = 1 then i.precio_venta else 0 END) as credito_soles
                     from Comprobantes c
                     inner join Items i on c.id = i.ComprobanteId
                     where CierreturnoId is null and UsuarioId = ${usuarioId}
@@ -452,7 +471,7 @@ import { toLocaleStorage } from './formats';
                            ISNULL(sum(pago_tarjeta),0) as tarjeta,
                            ISNULL(sum(pago_yape),0) as yape
                     from Comprobantes
-                    where CierreturnoId is null and tipo_comprobante in ('01','03','52') and UsuarioId = ${usuarioId};
+                    where CierreturnoId is null and tipo_comprobante in ('01','03','52') and ISNULL(es_credito,0) = 0 and UsuarioId = ${usuarioId};
                 `)).recordset[0] as ICierreTurnoSoles;
 
                 const totalActual = solesActuales.efectivo + solesActuales.tarjeta + solesActuales.yape;
@@ -496,7 +515,7 @@ import { toLocaleStorage } from './formats';
 
                 const sqlRequestCierreDetalle = new sql.Request(transaction);
                 const query_detalle = `INSERT INTO Cierreturnosdetalle (
-                    CierreturnoId,producto,medida,codigo,total_cantidad,despacho_cantidad,calibracion_cantidad,total_soles,despacho_soles, calibracion_soles  
+                    CierreturnoId,producto,medida,codigo,total_cantidad,despacho_cantidad,calibracion_cantidad,total_soles,despacho_soles, calibracion_soles, credito_cantidad, credito_soles  
                 ) VALUES ${products_insert}`
 
                 await sqlRequestCierreDetalle.query(query_detalle);
