@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Session } from 'next-auth';
-import { IoChevronDown, IoPrintOutline } from 'react-icons/io5';
+import { IoChevronDown, IoCreateOutline, IoDocumentTextOutline, IoPrintOutline } from 'react-icons/io5';
 import { reprintBilling } from '@/actions/billing/save-billing';
 import { notify } from '@/utils';
 
@@ -40,7 +40,8 @@ export const AccionesAdmin = ({ id, session, puedeNotaCredito, puedeModificar }:
         notify({ message, type: status ? 'success' : 'error' });
     };
 
-    const itemClase = 'flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-100 whitespace-nowrap';
+    const itemClase = 'flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 whitespace-nowrap';
+    const iconoClase = 'text-gray-500';
 
     return (
         <div ref={contenedor} className="relative inline-block">
@@ -49,20 +50,20 @@ export const AccionesAdmin = ({ id, session, puedeNotaCredito, puedeModificar }:
                 onClick={() => setAbierto(a => !a)}
                 aria-haspopup="menu"
                 aria-expanded={abierto}
-                className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-1.5 px-2 rounded"
+                className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
             >
                 Acciones <IoChevronDown size={14} />
             </button>
             {abierto && (
                 <div role="menu" className="absolute right-0 top-full mt-1 z-30 min-w-[190px] bg-white border rounded-md shadow-lg py-1">
                     <button type="button" role="menuitem" onClick={reimprimir} className={itemClase}>
-                        <IoPrintOutline size={16} /> Reimprimir
+                        <IoPrintOutline size={16} className={iconoClase} /> Reimprimir
                     </button>
                     {puedeNotaCredito && (
-                        <Link role="menuitem" href={`/historic/${id}`} className={itemClase}>Nota de crédito</Link>
+                        <Link role="menuitem" href={`/historic/${id}`} className={itemClase}><IoDocumentTextOutline size={16} className={iconoClase} /> Nota de crédito</Link>
                     )}
                     {puedeModificar && (
-                        <Link role="menuitem" href={`/historic/corregir/${id}`} className={itemClase}>Modificar</Link>
+                        <Link role="menuitem" href={`/historic/corregir/${id}`} className={itemClase}><IoCreateOutline size={16} className={iconoClase} /> Modificar</Link>
                     )}
                 </div>
             )}
