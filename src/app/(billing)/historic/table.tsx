@@ -44,6 +44,14 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
     const puedeCorregir = (item: IComprobanteHistorico) =>
         ['01', '03'].includes(item.tipo_codigo ?? '') && !!item.enviado && !item.errors && !item.numeracion_documento_afectado
         && !item.CierreturnoId && !item.correccion_estado && islaSesion > 0 && Number(item.IslaId) === islaSesion;
+    // El administrador corrige directamente facturas/boletas aceptadas de los ultimos 7 dias (sin importar isla ni cierre de turno);
+    // el servidor lo vuelve a validar
+    const hoyLima = toLocaleOnlyDate(new Date(Date.now() - (5 * 60 * 60 * 1000)));
+    const diasDesdeEmision = (item: IComprobanteHistorico) =>
+        Math.round((Date.parse(hoyLima) - Date.parse(String(item.fecha_emision).slice(0, 10))) / 86400000);
+    const puedeCorregirAdmin = (item: IComprobanteHistorico) =>
+        ['01', '03'].includes(item.tipo_codigo ?? '') && !!item.enviado && !item.errors && !item.nc_en_espera && !item.numeracion_documento_afectado
+        && item.correccion_estado !== 'PENDIENTE' && item.correccion_estado !== 'APROBADA' && diasDesdeEmision(item) <= 7 && diasDesdeEmision(item) >= 0;
     const [date, setDate] = useState<string>(toLocaleOnlyDate(new Date(Date.now() - (5 * 60 * 60 * 1000))));   
     const [numeracion, setNumeracion] = useState<string>(''); 
     const [currentPage, setCurrentPage] = useState(1);
@@ -127,6 +135,9 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                             )}
                             {/* El grifero corrige comprobantes de su isla con el turno abierto; el administrador los aprueba */}
                             {!isAdmin && puedeCorregir(item) && (
+                                <Link href={`/historic/corregir/${item.id}`} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-2 rounded ml-1">Corregir</Link>
+                            )}
+                            {isAdmin && puedeCorregirAdmin(item) && (
                                 <Link href={`/historic/corregir/${item.id}`} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-2 rounded ml-1">Corregir</Link>
                             )}
                             {item.correccion_estado && (() => {

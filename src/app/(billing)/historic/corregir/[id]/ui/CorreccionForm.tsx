@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { crearSolicitudCorreccion } from "@/actions/correcciones";
+import { corregirComoAdmin, crearSolicitudCorreccion } from "@/actions/correcciones";
 import { notify } from "@/utils";
 import { useOrderAbastecimientoStore } from "@/store";
 import { IBillingForm } from "@/interfaces";
@@ -12,11 +12,13 @@ interface Props {
     numeracion: string;
     total: number;
     inicial: IBillingForm;
+    // El administrador modifica directamente: se emite la nota de credito y el comprobante nuevo al confirmar
+    modoAdmin?: boolean;
 }
 
 // El grifero propone los datos correctos (receptor, placa, tipo de pago) y la razón del cambio.
 // No se emite nada: el administrador revisa y aprueba la corrección desde el histórico.
-export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial }: Props) => {
+export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial, modoAdmin = false }: Props) => {
     const router = useRouter();
     const [formValues, setFormValues] = useState<IBillingForm>(inicial);
     const [celular, setCelular] = useState('');
@@ -63,7 +65,7 @@ export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial }: Pr
         enProceso.current = true;
         setIsProcessing(true);
         try {
-            const { status, message } = await crearSolicitudCorreccion({
+            const { status, message } = await (modoAdmin ? corregirComoAdmin : crearSolicitudCorreccion)({
                 ComprobanteId: comprobanteId,
                 numero_documento: numeroDocumento,
                 razon_social: razonSocial,
@@ -90,8 +92,9 @@ export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial }: Pr
         <>
             <h2 className="text-2xl mb-2 font-bold text-slate-800">Corregir comprobante {numeracion}</h2>
             <p className="text-sm text-gray-600 mb-4">
-                Ingresa los datos correctos. El administrador revisará la corrección y, al aprobarla, emitirá el comprobante nuevo.
-                El comprobante actual no se modifica.
+                {modoAdmin
+                    ? 'Ingresa los datos correctos. Al confirmar se emite una nota de crédito que anula el comprobante actual y un comprobante nuevo con estos datos (ambos con la fecha de hoy).'
+                    : 'Ingresa los datos correctos. El administrador revisará la corrección y, al aprobarla, emitirá el comprobante nuevo. El comprobante actual no se modifica.'}
             </p>
             <form onSubmit={handleSubmit} autoComplete="off" className="flex flex-col">
                 <div className="grid grid-cols-2 gap-3">
@@ -129,7 +132,7 @@ export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial }: Pr
                             className={`${botonBloqueado ? "btn-disabled" : "btn-primary"} px-5 py-2 mt-3 w-full`}
                             disabled={botonBloqueado}
                             type="submit">
-                            {isProcessing ? 'Enviando...' : enviado ? 'Corrección enviada' : 'Enviar corrección'}
+                            {isProcessing ? (modoAdmin ? 'Emitiendo...' : 'Enviando...') : enviado ? (modoAdmin ? 'Comprobante corregido' : 'Corrección enviada') : (modoAdmin ? 'Corregir y emitir' : 'Enviar corrección')}
                         </button>
                     </div>
                 </div>
