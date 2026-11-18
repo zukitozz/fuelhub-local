@@ -101,7 +101,7 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
             return false;
         }
 
-        if (Math.abs(sumaPagos - total) > 0.01) {
+        if (!formValues.esCredito && Math.abs(sumaPagos - total) > 0.01) {
             notify({ message: 'La suma de los pagos no coincide con el total', type: 'error' });
             return false;
         }
@@ -222,6 +222,9 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
             0, "", notas.length > 0 ? observaciones : "", formValues.fechaEmision || null
         )
 
+        // Venta al credito: no se cobra en el turno (el servidor valida el credito y deja los pagos en 0)
+        comprobante.es_credito = !!formValues.esCredito && (tipoComprobante === Constants.TIPO_COMPROBANTE.FACTURA || tipoComprobante === Constants.TIPO_COMPROBANTE.BOLETA);
+
         const validatePrev = await validatePrevBilling(id_abastecimiento);
         if(validatePrev.status){
             notify({message: validatePrev.message, type:'error'})
@@ -253,7 +256,7 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
                     <Placa formValues={formValues} setFormValues={setFormValues}/>
                     <RazonSocial formValues={formValues} setFormValues={setFormValues}/>
                     <Direccion formValues={formValues} setFormValues={setFormValues}/>
-                    <AvisoCredito formValues={formValues} total={total}/>
+                    <AvisoCredito formValues={formValues} setFormValues={setFormValues} total={total}/>
                     <FechaEmision formValues={formValues} setFormValues={setFormValues} permiteRetroactiva={permiteFechaRetroactiva} />
                     <TipoPago total={total} formValues={formValues} setFormValues={setFormValues} />
 

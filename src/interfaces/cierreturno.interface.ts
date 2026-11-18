@@ -10,6 +10,8 @@ export interface ICierreTurnoDetalle {
     calibracion_soles: number;   
     despacho_cantidad: number;
     despacho_soles: number;
+    credito_cantidad?: number;
+    credito_soles?: number;
 }
 
 export interface ICierreTurnoSoles {

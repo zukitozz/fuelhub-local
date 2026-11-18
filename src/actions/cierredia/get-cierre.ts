@@ -16,7 +16,7 @@ export async function obtieneCierreDia(): Promise<ICierreTurno[]> {
             const detalle = await executeQuery<ICierreTurnoDetalle[]>(
                 process.env.DB_DATABASE_AUXILIAR||"", 
                 `
-                    select codigo, producto, medida, total_cantidad, total_soles, calibracion_cantidad, calibracion_soles, despacho_cantidad, despacho_soles 
+                    select codigo, producto, medida, total_cantidad, total_soles, calibracion_cantidad, calibracion_soles, despacho_cantidad, despacho_soles, ISNULL(credito_cantidad,0) as credito_cantidad, ISNULL(credito_soles,0) as credito_soles 
                     from Cierreturnosdetalle 
                     where CierreturnoId = ${cierre.id};
                 `

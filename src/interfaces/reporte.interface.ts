@@ -1,4 +1,4 @@
-export type TipoMovimientoCierreDiario = 'VENTA' | 'DESPACHO' | 'SERAFIN';
+export type TipoMovimientoCierreDiario = 'VENTA' | 'DESPACHO' | 'SERAFIN' | 'CREDITO';
 
 export interface IReporteCierreDiarioDetalle {
     codigo: string;

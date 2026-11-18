@@ -252,6 +252,7 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
             nuevo.notas = [];
             nuevo.impresion = 0;
             nuevo.enviado = 0;
+            nuevo.es_credito = !!original.es_credito;
             const bill = await saveBillingTransaction(nuevo, { omitirStock: true, esCorreccion: true });
             if (bill.id) generarPdfAlEmitir(Number(bill.id), bill.tipo_comprobante);
             nuevoNumeracion = bill.numeracion_comprobante;

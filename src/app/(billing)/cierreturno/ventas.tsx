@@ -134,6 +134,24 @@ export const CierreVentas = () => {
                 </ResumenTable>
             )}
 
+            {/* Ventas al credito: no suman a la cuenta del grifero, se muestran aparte */}
+            {data.productos.some(p => Number(p.credito_soles ?? 0) > 0) && (
+                <ResumenTable
+                    title="VENTAS AL CRÉDITO (no suman a tu cuenta)"
+                    headers={['PRODUCTO', 'CANT', 'IMPORTE']}
+                    footerLabel="SUB TOTAL"
+                    footerValue={data.productos.reduce((acc, p) => acc + Number(p.credito_soles ?? 0), 0)}
+                >
+                    {data.productos.filter(p => Number(p.credito_soles ?? 0) > 0).map(item => (
+                        <tr key={`credito-${item.producto}`}>
+                            <td className='text-left'>{item.producto}</td>
+                            <td className='text-right'>{Number(item.credito_cantidad ?? 0).toFixed(3)}</td>
+                            <td className='text-right'>{currencyFormat(Number(item.credito_soles ?? 0))}</td>
+                        </tr>
+                    ))}
+                </ResumenTable>
+            )}
+
             {/* 2. Venta Galones */}
             <ResumenTable 
                 title="VENTA GALONES" 

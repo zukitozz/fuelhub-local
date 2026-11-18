@@ -41,6 +41,8 @@ export interface IComprobanteAdmin {
     producto_precio: number| null;
     ruc: string;
     enviado: number;
+    // Venta al credito (factura/boleta): no entra a la cuenta del grifero ni al total del cierre
+    es_credito?: boolean | number | null;
     estado_nota_despacho: string|null;
     comprobante_nota_despacho: string|null;
     fecha_facturado_nota_despacho: string|null;
