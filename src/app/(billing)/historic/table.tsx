@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import { ChangeEvent, SetStateAction, useEffect, useState } from 'react';
 import { Constants, toLocaleOnlyDate, toLocaleShow } from '@/utils';
 import PrintButton from '@/components/ui/print/Printbutton';
+import AccionesAdmin from './AccionesAdmin';
 
 interface TableProps {
   page: number;
@@ -131,16 +132,8 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                                 <span title={`La nota de crédito ${item.nc_en_espera} está en espera de que SUNAT acepte esta boleta; se enviará sola. No generes otra.`}
                                     className="bg-amber-100 text-amber-800 font-bold py-1.5 px-2 rounded cursor-help">NC en espera</span>
                             )}
-                            {/* Con una corrección pendiente o aprobada, la nota de crédito la genera esa corrección */}
-                            {isAdmin && !!item.enviado && !item.errors && !item.nc_en_espera && !item.numeracion_documento_afectado
-                                && item.correccion_estado !== 'PENDIENTE' && item.correccion_estado !== 'APROBADA' && (
-                                <Link href={`/historic/${item.id}`} className="bg-green-500 hover:bg-green-700 text-white font-bold py-1.5 px-2 rounded ml-1">N.Credito</Link>
-                            )}
                             {/* El grifero corrige comprobantes de su isla con el turno abierto; el administrador los aprueba */}
                             {!isAdmin && puedeCorregir(item) && (
-                                <Link href={`/historic/corregir/${item.id}`} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-2 rounded ml-1">Corregir</Link>
-                            )}
-                            {isAdmin && puedeCorregirAdmin(item) && (
                                 <Link href={`/historic/corregir/${item.id}`} className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-2 rounded ml-1">Corregir</Link>
                             )}
                             {item.correccion_estado && (() => {
@@ -156,7 +149,18 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                             })()}
                         </td>
                         <td className="text-sm text-gray-900 font-light px-3 ">
-                            <PrintButton id={item.id || 0} session={session} />
+                            {isAdmin ? (
+                                <AccionesAdmin
+                                    id={item.id || 0}
+                                    session={session}
+                                    // Con una corrección pendiente o aprobada, la nota de crédito la genera esa corrección
+                                    puedeNotaCredito={!!item.enviado && !item.errors && !item.nc_en_espera && !item.numeracion_documento_afectado
+                                        && item.correccion_estado !== 'PENDIENTE' && item.correccion_estado !== 'APROBADA'}
+                                    puedeModificar={puedeCorregirAdmin(item)}
+                                />
+                            ) : (
+                                <PrintButton id={item.id || 0} session={session} />
+                            )}
                         </td>                    
                     </tr>
                 ))
@@ -231,9 +235,9 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                 {/* Porcentajes que suman 100: con table-fixed la tabla nunca puede
                     exceder el ancho disponible, asi que no aparece scroll horizontal */}
                 <colgroup>
-                    <col className="w-[15%]" />  {/* Fecha: alcanza para 'AAAA-MM-DD HH:MM:SS' completo */}
+                    <col className="w-[13%]" />  {/* Fecha: alcanza para 'AAAA-MM-DD HH:MM:SS' completo */}
                     <col className="w-[15%]" />  {/* Cliente */}
-                    <col className="w-[12%]" />  {/* Producto */}
+                    <col className="w-[10%]" />  {/* Producto */}
                     <col className="w-[10%]" />  {/* Comprobante */}
                     <col className="w-[5%]" />   {/* Total */}
                     <col className="w-[6%]" />   {/* Isla */}
@@ -241,7 +245,7 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                     <col className="w-[10%]" />  {/* Usuario */}
                     <col className="w-[6%]" />   {/* PDF */}
                     <col className="w-[9%]" />   {/* SUNAT */}
-                    <col className="w-[6%]" />   {/* Acciones: no bajar de 6%, si no el titulo no entra y el fondo gris se ve cortado */}
+                    <col className="w-[10%]" />  {/* Acciones (boton desplegable): no bajar de 10%, si no el titulo no entra y el fondo gris se ve cortado */}
                 </colgroup>
                 <thead className="bg-gray-200 border-b">
                     <tr>
