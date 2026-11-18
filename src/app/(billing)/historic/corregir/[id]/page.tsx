@@ -14,12 +14,12 @@ interface Props {
 
 const aNumero = (valor: unknown) => Number(valor) || 0;
 
-// Pantalla del grifero para proponer la corrección de un comprobante de su isla
+// Pantalla para corregir un comprobante: el grifero propone (de su isla) y el administrador lo modifica directamente
 export default async function CorregirComprobantePage({ params }: Readonly<Props>) {
     const session = await auth();
     if (!session?.user) redirect('/auth/login');
-    // El administrador no corrige: emite la nota de crédito directamente desde el histórico
-    if (session.user.rol === Constants.ROL.ADMIN_ROLE) redirect('/historic');
+    // El administrador modifica directamente (sin solicitud del grifero), hasta 7 dias atras
+    const esAdmin = session.user.rol === Constants.ROL.ADMIN_ROLE;
 
     const id = Number(params.id);
     const verificacion = await verificarCorreccion(id);
@@ -63,7 +63,9 @@ export default async function CorregirComprobantePage({ params }: Readonly<Props
                 {/* Marco de color para que el grifero note que está en una opción distinta a la venta normal */}
                 <div className="border-4 border-amber-500 rounded-xl shadow-xl overflow-hidden bg-white">
                     <div className="bg-amber-500 text-white font-bold text-center py-2 px-4 tracking-wide">
-                        MODO CORRECCIÓN · Esta opción no emite el comprobante: envía una solicitud al administrador
+                        {esAdmin
+                            ? 'MODO CORRECCIÓN · Al confirmar se emite la nota de crédito y el comprobante nuevo'
+                            : 'MODO CORRECCIÓN · Esta opción no emite el comprobante: envía una solicitud al administrador'}
                     </div>
                     <div className="p-7">
                         <CorreccionForm
@@ -71,6 +73,7 @@ export default async function CorregirComprobantePage({ params }: Readonly<Props
                             numeracion={data.numeracion_comprobante}
                             total={aNumero(data.total)}
                             inicial={inicial}
+                            modoAdmin={esAdmin}
                         />
                     </div>
                 </div>

@@ -15,24 +15,35 @@ import { IComprobanteAdmin, ICorreccionInput, IRespuestaCorreccion, IResumenSoli
 const db = () => process.env.DB_DATABASE_AUXILIAR || "";
 const esAdmin = (rol?: string) => rol === Constants.ROL.ADMIN_ROLE;
 
+// Tope para que un administrador modifique un comprobante emitido: dias atras desde hoy (inclusive)
+const DIAS_MAX_ADMIN = 7;
+
 interface IElegibilidad {
     ok: boolean;
     message: string;
     total: number;
     numeracion: string;
+    islaId: number;
+    solicitudId: number | null;
 }
 
 // Reglas para que un grifero pueda corregir un comprobante: es de su isla, todavía no tiene
 // cierre de turno, es una factura o boleta ya aceptada, no tiene nota de crédito ni una solicitud previa.
-async function validarElegibilidad(comprobanteId: number, islaSesion: number): Promise<IElegibilidad> {
-    const no = (message: string): IElegibilidad => ({ ok: false, message, total: 0, numeracion: '' });
+// El administrador (admin=true) modifica directamente, sin solicitud del grifero: de cualquier isla, con o sin
+// turno cerrado, pero solo comprobantes emitidos en los ultimos DIAS_MAX_ADMIN dias.
+async function validarElegibilidad(comprobanteId: number, islaSesion: number, admin = false): Promise<IElegibilidad> {
+    const no = (message: string): IElegibilidad => ({ ok: false, message, total: 0, numeracion: '', islaId: 0, solicitudId: null });
     if (!Number.isInteger(comprobanteId) || comprobanteId <= 0) return no('Comprobante no válido');
-    if (!islaSesion) return no('Tu usuario no tiene una isla asignada');
+    if (!admin && !islaSesion) return no('Tu usuario no tiene una isla asignada');
 
     const filas = await executeQuery<any[]>(db(),
         `SELECT c.tipo_comprobante, c.numeracion_comprobante, c.enviado, c.errors, c.CierreturnoId, c.IslaId,
                 c.numeracion_documento_afectado, c.total,
-                (SELECT COUNT(*) FROM SolicitudesCorreccion s WHERE s.ComprobanteId = c.id) AS solicitudes
+                (SELECT COUNT(*) FROM SolicitudesCorreccion s WHERE s.ComprobanteId = c.id) AS solicitudes,
+                (SELECT TOP 1 s.id FROM SolicitudesCorreccion s WHERE s.ComprobanteId = c.id) AS solicitud_id,
+                (SELECT TOP 1 s.estado FROM SolicitudesCorreccion s WHERE s.ComprobanteId = c.id) AS solicitud_estado,
+                DATEDIFF(day, c.fecha_emision, CAST(DATEADD(hour, -5, GETUTCDATE()) AS date)) AS dias,
+                (SELECT COUNT(*) FROM Comprobantes nc WHERE nc.tipo_comprobante = '07' AND nc.numeracion_documento_afectado = c.numeracion_comprobante) AS notas_credito
          FROM Comprobantes c WHERE c.id = @id`,
         [{ name: 'id', value: comprobanteId, type: sql.Int }]);
     const c = filas?.[0];
@@ -40,16 +51,26 @@ async function validarElegibilidad(comprobanteId: number, islaSesion: number): P
     if (!['01', '03'].includes(c.tipo_comprobante)) return no('Solo se pueden corregir facturas y boletas');
     if (!c.enviado || (c.errors && c.errors !== 'null')) return no('El comprobante aún no fue aceptado');
     if (c.numeracion_documento_afectado) return no('El comprobante ya tiene una nota de crédito');
+    const ok = (): IElegibilidad => ({ ok: true, message: '', total: Number(c.total), numeracion: c.numeracion_comprobante, islaId: Number(c.IslaId) || 0, solicitudId: c.solicitud_id ?? null });
+    if (admin) {
+        if (c.notas_credito > 0) return no('El comprobante ya tiene una nota de crédito');
+        if (Number(c.dias) > DIAS_MAX_ADMIN) return no(`Solo se pueden modificar comprobantes de los últimos ${DIAS_MAX_ADMIN} días`);
+        if (Number(c.dias) < 0) return no('La fecha de emisión del comprobante es posterior a hoy');
+        if (c.solicitud_estado === 'PENDIENTE') return no('Este comprobante tiene una corrección pendiente del grifero: apruébala o recházala desde el histórico');
+        if (c.solicitud_estado === 'APROBADA') return no('Este comprobante ya fue corregido');
+        // RECHAZADA: el administrador si puede corregirlo directamente
+        return ok();
+    }
     if (c.CierreturnoId) return no('El turno de este comprobante ya fue cerrado');
     if (Number(c.IslaId) !== islaSesion) return no('Solo puedes corregir comprobantes de tu isla');
     if (c.solicitudes > 0) return no('Este comprobante ya tiene una corrección solicitada');
-    return { ok: true, message: '', total: Number(c.total), numeracion: c.numeracion_comprobante };
+    return ok();
 }
 
 export async function verificarCorreccion(comprobanteId: number): Promise<IRespuestaCorreccion> {
     const session = await auth();
     if (!session?.user) return { status: false, message: 'Sesión no válida' };
-    const r = await validarElegibilidad(comprobanteId, Number(session.user.islaId) || 0);
+    const r = await validarElegibilidad(comprobanteId, Number(session.user.islaId) || 0, esAdmin(session.user.rol));
     return { status: r.ok, message: r.message };
 }
 
@@ -57,6 +78,7 @@ export async function crearSolicitudCorreccion(input: ICorreccionInput): Promise
     const session = await auth();
     if (!session?.user) return { status: false, message: 'Sesión no válida' };
     const islaId = Number(session.user.islaId) || 0;
+    if (esAdmin(session.user.rol)) return { status: false, message: 'El administrador modifica el comprobante directamente' };
 
     const elegible = await validarElegibilidad(input.ComprobanteId, islaId);
     if (!elegible.ok) return { status: false, message: elegible.message };
@@ -102,6 +124,76 @@ export async function crearSolicitudCorreccion(input: ICorreccionInput): Promise
         console.error('Error crearSolicitudCorreccion:', error);
         const detalle = error instanceof Error ? error.message : JSON.stringify(error);
         return { status: false, message: `No se pudo registrar la corrección | ${detalle}` };
+    }
+}
+
+// El administrador modifica un comprobante emitido (hasta DIAS_MAX_ADMIN dias atras) sin esperar solicitud del grifero.
+// Reutiliza el flujo de aprobacion (nota de credito + comprobante nuevo): registra la correccion ya a nombre del
+// administrador y la aprueba en el acto. Si algo falla a la mitad, se puede volver a intentar sin repetir la nota de crédito.
+export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespuestaCorreccion> {
+    const session = await auth();
+    if (!esAdmin(session?.user?.rol)) return { status: false, message: 'Solo un administrador puede modificar comprobantes directamente' };
+    const adminId = Number(session?.user?.id);
+
+    const elegible = await validarElegibilidad(input.ComprobanteId, 0, true);
+    if (!elegible.ok) return { status: false, message: elegible.message };
+
+    const numero = (input.numero_documento || '').trim();
+    if (!/^\d{8}$|^\d{11}$/.test(numero)) return { status: false, message: 'Ingresa un DNI (8 dígitos) o un RUC (11 dígitos)' };
+    const razon = (input.razon_social || '').trim();
+    if (!razon || razon === '0') return { status: false, message: 'Ingresa la razón social' };
+    const observaciones = (input.observaciones || '').trim();
+    if (observaciones.length < 5) return { status: false, message: 'Escribe la razón del cambio en las observaciones' };
+    const efectivo = Number(input.efectivo) || 0, tarjeta = Number(input.tarjeta) || 0, yape = Number(input.yape) || 0;
+    if (Math.abs(efectivo + tarjeta + yape - elegible.total) > 0.01) {
+        return { status: false, message: 'La suma de los pagos no coincide con el total del comprobante' };
+    }
+    const tipoDocumento = numero.length === 11 ? Constants.TIPO_DOCUMENTO.RUC_SUNAT : Constants.TIPO_DOCUMENTO.DNI_SUNAT;
+    const parametros = [
+        { name: 'ComprobanteId', value: input.ComprobanteId, type: sql.Int },
+        { name: 'numeracion', value: elegible.numeracion, type: sql.NVarChar },
+        { name: 'tipo', value: tipoDocumento, type: sql.NVarChar },
+        { name: 'numero', value: numero, type: sql.NVarChar },
+        { name: 'razon', value: razon.slice(0, 250), type: sql.NVarChar },
+        { name: 'direccion', value: (input.direccion || '').trim().slice(0, 250) || null, type: sql.NVarChar },
+        { name: 'placa', value: (input.placa || '').trim().toUpperCase().slice(0, 10) || null, type: sql.NVarChar },
+        { name: 'celular', value: (input.celular || '').trim().slice(0, 20) || null, type: sql.NVarChar },
+        { name: 'efectivo', value: Math.round(efectivo * 100) / 100, type: sql.Float },
+        { name: 'tarjeta', value: Math.round(tarjeta * 100) / 100, type: sql.Float },
+        { name: 'yape', value: Math.round(yape * 100) / 100, type: sql.Float },
+        { name: 'observaciones', value: `[Administrador] ${observaciones}`.slice(0, 500), type: sql.NVarChar },
+        { name: 'UsuarioId', value: adminId, type: sql.Int },
+        { name: 'IslaId', value: elegible.islaId, type: sql.Int },
+    ];
+
+    try {
+        let solicitudId = elegible.solicitudId;
+        if (solicitudId) {
+            // Habia una solicitud RECHAZADA (solo hay una por comprobante): se reutiliza con los datos del administrador
+            await executeQuery(db(),
+                `UPDATE SolicitudesCorreccion
+                 SET tipo_documento = @tipo, numero_documento = @numero, razon_social = @razon, direccion = @direccion, placa = @placa,
+                     celular = @celular, pago_efectivo = @efectivo, pago_tarjeta = @tarjeta, pago_yape = @yape, observaciones = @observaciones,
+                     UsuarioId = @UsuarioId, IslaId = @IslaId, estado = 'PENDIENTE', motivo_rechazo = NULL, fecha_resolucion = NULL,
+                     fecha_solicitud = GETDATE()
+                 WHERE id = @id AND estado = 'RECHAZADA'`,
+                [...parametros, { name: 'id', value: solicitudId, type: sql.Int }]);
+        } else {
+            const filas = await executeQuery<{ id: number }[]>(db(),
+                `INSERT INTO SolicitudesCorreccion
+                    (ComprobanteId, numeracion_comprobante, tipo_documento, numero_documento, razon_social, direccion, placa, celular,
+                     pago_efectivo, pago_tarjeta, pago_yape, observaciones, UsuarioId, IslaId)
+                 OUTPUT inserted.id
+                 VALUES (@ComprobanteId, @numeracion, @tipo, @numero, @razon, @direccion, @placa, @celular,
+                     @efectivo, @tarjeta, @yape, @observaciones, @UsuarioId, @IslaId)`, parametros);
+            solicitudId = filas?.[0]?.id ?? null;
+        }
+        if (!solicitudId) return { status: false, message: 'No se pudo registrar la corrección' };
+        return await aprobarSolicitud(solicitudId);
+    } catch (error) {
+        console.error('Error corregirComoAdmin:', error);
+        const detalle = error instanceof Error ? error.message : JSON.stringify(error);
+        return { status: false, message: `No se pudo modificar el comprobante | ${detalle}` };
     }
 }
 
