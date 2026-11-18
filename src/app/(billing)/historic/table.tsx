@@ -4,13 +4,13 @@ import { getHistoricos } from '@/actions'
 import { obtenerSolicitudesPendientes } from '@/actions/correcciones'
 import { IComprobanteHistorico } from '@/interfaces';
 import Link from 'next/link';
-import { IoDocumentTextOutline } from 'react-icons/io5';
+import { IoCreateOutline, IoDocumentTextOutline } from 'react-icons/io5';
 import { useSession } from "next-auth/react";
 
 import { ChangeEvent, SetStateAction, useEffect, useState } from 'react';
 import { Constants, toLocaleOnlyDate, toLocaleShow } from '@/utils';
-import PrintButton from '@/components/ui/print/Printbutton';
 import AccionesAdmin from './AccionesAdmin';
+import ImpresionOperador from './ImpresionOperador';
 
 interface TableProps {
   page: number;
@@ -119,7 +119,14 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                         <td className="text-sm text-gray-700 px-3 py-3">{item.turno}</td>
                         <td className="text-sm text-gray-700 px-3 py-3">{item.usuario}</td>
                         <td className="text-sm text-gray-700 px-3 py-3">
-                            <a href={`/api/comprobante/${item.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"><IoDocumentTextOutline size={14} />PDF</a>
+                            {isAdmin ? (
+                                <a href={`/api/comprobante/${item.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"><IoDocumentTextOutline size={14} />PDF</a>
+                            ) : (
+                                /* El grifero corrige comprobantes de su isla con el turno abierto; el administrador los aprueba. Mismo azul que el resto de botones */
+                                puedeCorregir(item) && (
+                                    <Link href={`/historic/corregir/${item.id}`} className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"><IoCreateOutline size={14} />Corregir</Link>
+                                )
+                            )}
                         </td>
                         <td className="text-sm text-gray-700 px-3 py-3">
                             {/* Una NC en espera no es un error: se envia sola cuando SUNAT acepta la boleta */}
@@ -136,10 +143,6 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                             {!!item.nc_en_espera && (
                                 <span title={`La nota de crédito ${item.nc_en_espera} está en espera de que SUNAT acepte esta boleta; se enviará sola. No generes otra.`}
                                     className="bg-amber-100 text-amber-800 inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full cursor-help">NC en espera</span>
-                            )}
-                            {/* El grifero corrige comprobantes de su isla con el turno abierto; el administrador los aprueba */}
-                            {!isAdmin && puedeCorregir(item) && (
-                                <Link href={`/historic/corregir/${item.id}`} className="inline-flex items-center text-xs font-semibold px-2.5 py-1.5 rounded-md border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors ml-1">Corregir</Link>
                             )}
                             {item.correccion_estado && (() => {
                                 const etiquetas = {
@@ -164,7 +167,7 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                                     puedeModificar={puedeCorregirAdmin(item)}
                                 />
                             ) : (
-                                <PrintButton id={item.id || 0} session={session} />
+                                <ImpresionOperador id={item.id || 0} session={session} />
                             )}
                         </td>                    
                     </tr>
@@ -262,7 +265,7 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
                         <th scope="col" className="text-xs font-semibold uppercase tracking-wide text-gray-500 px-3 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg">Isla</th>
                         <th scope="col" className="text-xs font-semibold uppercase tracking-wide text-gray-500 px-3 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg">Turno</th>
                         <th scope="col" className="text-xs font-semibold uppercase tracking-wide text-gray-500 px-3 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg">Usuario</th>
-                        <th scope="col" className="text-xs font-semibold uppercase tracking-wide text-gray-500 px-3 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg">PDF</th>
+                        <th scope="col" className="text-xs font-semibold uppercase tracking-wide text-gray-500 px-3 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg">{isAdmin ? 'PDF' : 'Corregir'}</th>
                         <th scope="col" className="text-xs font-semibold uppercase tracking-wide text-gray-500 px-3 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg">SUNAT</th> 
                         <th scope="col" className="text-xs font-semibold uppercase tracking-wide text-gray-500 px-3 py-3 text-left first:rounded-tl-lg last:rounded-tr-lg">Acciones</th>                                                                                                            
                     </tr>
