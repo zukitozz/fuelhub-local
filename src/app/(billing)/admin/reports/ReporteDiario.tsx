@@ -78,18 +78,20 @@ export const ReporteDiario = () => {
         return resultado.filter(seccion => seccion.filas.length > 0);
     }, [data]);
 
+    // Facturas de notas de despacho emitidas ese dia (las emite el administrador, sin turno). Las notas de despacho
+    // no suman al total (ver sumaAlTotal) porque aun no se cobraron: se cobran al facturarlas, por eso estas facturas
+    // si suman al total general del dia en que se emitieron.
+    const facturasDespacho: IReporteFacturaDespacho[] = useMemo(() => data?.facturasDespacho ?? [], [data]);
+    const totalFacturasDespacho = facturasDespacho.reduce((acc, f) => acc + Number(f.total_factura), 0);
+
     // Solo suma los soles de lo efectivamente cobrado: nota de despacho y serafin quedan
     // fuera. El volumen mezclaria galones con unidades y las ventas contarian dos veces un
     // comprobante que llevo combustible y otros productos, asi que esas columnas van vacias.
-    const totalGeneral = useMemo(
+    const totalSecciones = useMemo(
         () => secciones.reduce((acc, seccion) => acc + (seccion.sumaAlTotal ? seccion.soles : 0), 0),
         [secciones]
     );
-
-    // Facturas de notas de despacho emitidas ese dia: se muestran aparte y no entran al total general (las notas de despacho
-    // tampoco entran, ver sumaAlTotal)
-    const facturasDespacho: IReporteFacturaDespacho[] = data?.facturasDespacho ?? [];
-    const totalFacturasDespacho = facturasDespacho.reduce((acc, f) => acc + Number(f.total_factura), 0);
+    const totalGeneral = totalSecciones + totalFacturasDespacho;
 
     const handleDateChange = (e: ChangeEvent<HTMLInputElement>) => setDate(e.target.value);
 
@@ -117,8 +119,6 @@ export const ReporteDiario = () => {
                 Number(seccion.soles.toFixed(2))
             ]);
         });
-        rows.push([]);
-        rows.push(['TOTAL GENERAL', '', '', '', Number(totalGeneral.toFixed(2))]);
         if (facturasDespacho.length > 0) {
             rows.push([]);
             rows.push(['FACTURAS DE NOTAS DE DESPACHO']);
@@ -126,6 +126,8 @@ export const ReporteDiario = () => {
             facturasDespacho.forEach(f => rows.push([f.factura, f.cliente ?? '', f.notas, '', Number(Number(f.total_factura).toFixed(2))]));
             rows.push(['TOTAL', '', facturasDespacho.reduce((acc, f) => acc + f.notas, 0), '', Number(totalFacturasDespacho.toFixed(2))]);
         }
+        rows.push([]);
+        rows.push(['TOTAL GENERAL', '', '', '', Number(totalGeneral.toFixed(2))]);
 
         const worksheet = XLSX.utils.aoa_to_sheet(rows);
         worksheet['!cols'] = [{ wch: 28 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
@@ -218,18 +220,6 @@ export const ReporteDiario = () => {
                                 </tr>
                             </tbody>
                         ))}
-                        <tfoot>
-                            <tr aria-hidden="true">
-                                <td colSpan={5} className="h-4 bg-white"></td>
-                            </tr>
-                            <tr className="bg-blue-50 border-t-2 border-blue-300">
-                                <td className="px-4 py-2 font-bold text-gray-900 uppercase tracking-wider">Total general</td>
-                                <td className="px-4 py-2"></td>
-                                <td className="px-4 py-2"></td>
-                                <td className="px-4 py-2"></td>
-                                <td className="px-4 py-2 text-right font-bold text-blue-700">{currencyFormat(totalGeneral)}</td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             )}
@@ -261,6 +251,21 @@ export const ReporteDiario = () => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Total general: ventas cobradas del cierre + facturas de notas de despacho del dia */}
+            {(secciones.length > 0 || facturasDespacho.length > 0) && (
+                <div className="mt-4 border-2 border-blue-300 bg-blue-50 rounded-xl px-4 py-3">
+                    <div className="flex items-center justify-between">
+                        <span className="font-bold text-gray-900 uppercase tracking-wider">Total general</span>
+                        <span className="font-bold text-blue-700 text-lg">{currencyFormat(totalGeneral)}</span>
+                    </div>
+                    {facturasDespacho.length > 0 && (
+                        <p className="mt-1 text-xs text-gray-600">
+                            Incluye {currencyFormat(totalSecciones)} de ventas del cierre y {currencyFormat(totalFacturasDespacho)} de facturas de notas de despacho.
+                        </p>
+                    )}
                 </div>
             )}
         </div>
