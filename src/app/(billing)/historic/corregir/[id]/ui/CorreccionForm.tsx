@@ -23,6 +23,7 @@ export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial, modo
     const [formValues, setFormValues] = useState<IBillingForm>(inicial);
     const [celular, setCelular] = useState('');
     const [observaciones, setObservaciones] = useState('');
+    const [comentario, setComentario] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [enviado, setEnviado] = useState(false);
     // El estado no frena un doble clic rápido; el ref sí es sincrónico
@@ -76,6 +77,7 @@ export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial, modo
                 tarjeta: Number(tarjeta) || 0,
                 yape: Number(yape) || 0,
                 observaciones,
+                comentario: modoAdmin ? comentario : undefined,
             });
             notify({ message, type: status ? 'success' : 'error' });
             if (status) {
@@ -127,6 +129,21 @@ export const CorreccionForm = ({ comprobanteId, numeracion, total, inicial, modo
                             onChange={(e) => setObservaciones(e.target.value)}
                         />
                     </div>
+                    {modoAdmin && (
+                        <div className="col-span-2">
+                            <label htmlFor="comentario">Comentario en el comprobante (opcional, se imprime)</label>
+                            <input
+                                className="px-5 py-2 border bg-gray-200 rounded w-full"
+                                type="text"
+                                name="comentario"
+                                maxLength={200}
+                                placeholder="Ej: Consumo del día 10/11/2026"
+                                value={comentario}
+                                onChange={(e) => setComentario(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                            />
+                        </div>
+                    )}
                     <div className="col-span-2">
                         <button
                             className={`${botonBloqueado ? "btn-disabled" : "btn-primary"} px-5 py-2 mt-3 w-full`}

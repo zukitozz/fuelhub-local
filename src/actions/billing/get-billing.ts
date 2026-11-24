@@ -1,4 +1,5 @@
 "use server";
+import sql from 'mssql';
 import { IComprobanteAdmin, IComprobanteAdminItem, IComprobantePDF, IComprobantePDFItem, IReceptor } from "@/interfaces";
 import { Constants } from "@/utils/constants";
 import { executeQuery } from '@/utils/db';
@@ -32,11 +33,22 @@ export async function obtieneNotasDespacho(): Promise<IComprobanteAdmin[]> {
                 `
             );
             comprobante.Receptor = receptor[0];
+            // Si el cliente de la nota ya no existe en Receptores (ReceptorId huerfano), se busca por el documento con que se
+            // emitio. Sin esto la pantalla de consolidacion se cae al leer Receptor.numero_documento de un cliente inexistente.
+            if (!comprobante.Receptor && comprobante.ruc) {
+                const porDocumento = await executeQuery<IReceptor[]>(
+                    process.env.DB_DATABASE_AUXILIAR||"",
+                    `select top 1 * from Receptores where numero_documento = @documento order by id desc`,
+                    [{ name: 'documento', type: sql.NVarChar, value: String(comprobante.ruc) }]
+                );
+                comprobante.Receptor = porDocumento[0];
+            }
             return comprobante;
         })
     )
- 
-    return comprobantes;
+
+    // Las notas cuyo cliente no se pudo resolver no se pueden consolidar: se dejan fuera en vez de romper toda la lista
+    return comprobantes.filter(c => !!c.Receptor);
 }
 
 export async function obtieneComprobantePDF(id: number): Promise<IComprobantePDF> {
