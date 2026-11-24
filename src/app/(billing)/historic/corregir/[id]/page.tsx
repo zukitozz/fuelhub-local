@@ -18,7 +18,7 @@ const aNumero = (valor: unknown) => Number(valor) || 0;
 export default async function CorregirComprobantePage({ params }: Readonly<Props>) {
     const session = await auth();
     if (!session?.user) redirect('/auth/login');
-    // El administrador modifica directamente (sin solicitud del grifero), hasta 7 dias atras
+    // El administrador modifica directamente (sin solicitud del grifero), hasta 15 dias atras
     const esAdmin = session.user.rol === Constants.ROL.ADMIN_ROLE;
 
     const id = Number(params.id);

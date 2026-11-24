@@ -52,6 +52,11 @@ BEGIN
 END
 GO
 
+-- Comentario que se imprime en el comprobante nuevo cuando el administrador modifica (opcional)
+IF COL_LENGTH('dbo.SolicitudesCorreccion', 'comentario_comprobante') IS NULL
+    ALTER TABLE dbo.SolicitudesCorreccion ADD comentario_comprobante NVARCHAR(200) NULL;
+GO
+
 -- Comprobación: debe devolver 0 filas la primera vez y la tabla ya creada
 SELECT COUNT(*) AS solicitudes FROM dbo.SolicitudesCorreccion;
 GO

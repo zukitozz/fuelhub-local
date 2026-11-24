@@ -16,7 +16,7 @@ const db = () => process.env.DB_DATABASE_AUXILIAR || "";
 const esAdmin = (rol?: string) => rol === Constants.ROL.ADMIN_ROLE;
 
 // Tope para que un administrador modifique un comprobante emitido: dias atras desde hoy (inclusive)
-const DIAS_MAX_ADMIN = 7;
+const DIAS_MAX_ADMIN = 15;
 
 interface IElegibilidad {
     ok: boolean;
@@ -162,6 +162,7 @@ export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespu
         { name: 'tarjeta', value: Math.round(tarjeta * 100) / 100, type: sql.Float },
         { name: 'yape', value: Math.round(yape * 100) / 100, type: sql.Float },
         { name: 'observaciones', value: `[Administrador] ${observaciones}`.slice(0, 500), type: sql.NVarChar },
+        { name: 'comentario', value: (input.comentario || '').trim().slice(0, 200) || null, type: sql.NVarChar },
         { name: 'UsuarioId', value: adminId, type: sql.Int },
         { name: 'IslaId', value: elegible.islaId, type: sql.Int },
     ];
@@ -174,7 +175,7 @@ export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespu
                 `UPDATE SolicitudesCorreccion
                  SET tipo_documento = @tipo, numero_documento = @numero, razon_social = @razon, direccion = @direccion, placa = @placa,
                      celular = @celular, pago_efectivo = @efectivo, pago_tarjeta = @tarjeta, pago_yape = @yape, observaciones = @observaciones,
-                     UsuarioId = @UsuarioId, IslaId = @IslaId, estado = 'PENDIENTE', motivo_rechazo = NULL, fecha_resolucion = NULL,
+                     comentario_comprobante = @comentario, UsuarioId = @UsuarioId, IslaId = @IslaId, estado = 'PENDIENTE', motivo_rechazo = NULL, fecha_resolucion = NULL,
                      fecha_solicitud = GETDATE()
                  WHERE id = @id AND estado = 'RECHAZADA'`,
                 [...parametros, { name: 'id', value: solicitudId, type: sql.Int }]);
@@ -182,10 +183,10 @@ export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespu
             const filas = await executeQuery<{ id: number }[]>(db(),
                 `INSERT INTO SolicitudesCorreccion
                     (ComprobanteId, numeracion_comprobante, tipo_documento, numero_documento, razon_social, direccion, placa, celular,
-                     pago_efectivo, pago_tarjeta, pago_yape, observaciones, UsuarioId, IslaId)
+                     pago_efectivo, pago_tarjeta, pago_yape, observaciones, comentario_comprobante, UsuarioId, IslaId)
                  OUTPUT inserted.id
                  VALUES (@ComprobanteId, @numeracion, @tipo, @numero, @razon, @direccion, @placa, @celular,
-                     @efectivo, @tarjeta, @yape, @observaciones, @UsuarioId, @IslaId)`, parametros);
+                     @efectivo, @tarjeta, @yape, @observaciones, @comentario, @UsuarioId, @IslaId)`, parametros);
             solicitudId = filas?.[0]?.id ?? null;
         }
         if (!solicitudId) return { status: false, message: 'No se pudo registrar la corrección' };
@@ -316,6 +317,8 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
                 placa: sol.placa ?? '',
             } as IComprobanteAdmin['Receptor'];
             nuevo.placa = sol.placa;
+            // Comentario que el administrador pidio imprimir; si no puso ninguno se conserva el del original
+            if (sol.comentario_comprobante) nuevo.comentario = sol.comentario_comprobante;
             nuevo.items = (original.items || []).map(item => {
                 const base = { ...item, placa: sol.placa ?? '' };
                 if (!esRuc) return base;

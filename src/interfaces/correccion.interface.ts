@@ -12,6 +12,8 @@ export interface ICorreccionInput {
     tarjeta: number;
     yape: number;
     observaciones: string;
+    // Texto que se imprime en el comprobante nuevo (solo lo usa el administrador al modificar). Opcional.
+    comentario?: string;
 }
 
 export interface ISolicitudCorreccion {
@@ -37,6 +39,8 @@ export interface ISolicitudCorreccion {
     motivo_rechazo: string | null;
     nc_numeracion: string | null;
     nuevo_numeracion: string | null;
+    // Comentario que se imprime en el comprobante nuevo (null = conserva el del original)
+    comentario_comprobante?: string | null;
     // Nombre del usuario que la solicitó (join con Usuarios)
     usuario?: string;
 }
