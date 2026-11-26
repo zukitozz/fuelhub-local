@@ -57,6 +57,11 @@ IF COL_LENGTH('dbo.SolicitudesCorreccion', 'comentario_comprobante') IS NULL
     ALTER TABLE dbo.SolicitudesCorreccion ADD comentario_comprobante NVARCHAR(200) NULL;
 GO
 
+-- Tipo del comprobante nuevo cuando el administrador convierte el comprobante en nota de despacho ('50'); NULL = factura/boleta
+IF COL_LENGTH('dbo.SolicitudesCorreccion', 'tipo_comprobante_nuevo') IS NULL
+    ALTER TABLE dbo.SolicitudesCorreccion ADD tipo_comprobante_nuevo NVARCHAR(2) NULL;
+GO
+
 -- Comprobación: debe devolver 0 filas la primera vez y la tabla ya creada
 SELECT COUNT(*) AS solicitudes FROM dbo.SolicitudesCorreccion;
 GO

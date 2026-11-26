@@ -7,6 +7,8 @@ interface Props {
     formValues: IBillingForm;
     setFormValues: (values: IBillingForm) => void;
     disabled?: boolean;
+    // Si se indica, solo se ofrecen estos tipos (el administrador solo puede emitir notas de despacho)
+    soloTipos?: string[];
 }
 
 const opciones = [
@@ -16,7 +18,7 @@ const opciones = [
     { label: 'Serafín', tipo: Constants.TIPO_COMPROBANTE.CALIBRACION },
 ];
 
-export const TipoComprobanteSelector = ({ formValues, setFormValues, disabled = false }: Props) => {
+export const TipoComprobanteSelector = ({ formValues, setFormValues, disabled = false, soloTipos }: Props) => {
     const removeDiscounts = useOrderAbastecimientoStore((state) => state.removeDiscounts);
     const unlockBilling = useOrderAbastecimientoStore((state) => state.unlockBilling);
 
@@ -40,7 +42,7 @@ export const TipoComprobanteSelector = ({ formValues, setFormValues, disabled = 
 
     return (
         <div className="flex flex-wrap gap-2">
-            {opciones.map(({ label, tipo }) => {
+            {opciones.filter(({ tipo }) => !soloTipos || soloTipos.includes(tipo)).map(({ label, tipo }) => {
                 const activo = formValues.tipoComprobante === tipo;
                 return (
                     <button

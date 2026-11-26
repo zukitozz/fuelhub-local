@@ -12,6 +12,8 @@ export interface ICorreccionInput {
     tarjeta: number;
     yape: number;
     observaciones: string;
+    // Solo administrador: el comprobante nuevo es una nota de despacho (con la fecha de la factura original)
+    notaDespacho?: boolean;
     // Texto que se imprime en el comprobante nuevo (solo lo usa el administrador al modificar). Opcional.
     comentario?: string;
 }
@@ -41,6 +43,8 @@ export interface ISolicitudCorreccion {
     nuevo_numeracion: string | null;
     // Comentario que se imprime en el comprobante nuevo (null = conserva el del original)
     comentario_comprobante?: string | null;
+    // '50' cuando el administrador convierte el comprobante en nota de despacho; null = factura/boleta segun el documento
+    tipo_comprobante_nuevo?: string | null;
     // Nombre del usuario que la solicitó (join con Usuarios)
     usuario?: string;
 }
@@ -62,4 +66,8 @@ export interface IResumenSolicitudPendiente {
 export interface IRespuestaCorreccion {
     status: boolean;
     message: string;
+    // Solo administrador (verificarCorreccion): el comprobante supera el tope de dias y solo puede pasar a nota de despacho
+    soloNotaDespacho?: boolean;
+    // Fecha de emision del comprobante original (AAAA-MM-DD)
+    fechaEmision?: string;
 }
