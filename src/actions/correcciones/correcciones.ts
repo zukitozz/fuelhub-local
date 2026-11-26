@@ -17,6 +17,12 @@ const esAdmin = (rol?: string) => rol === Constants.ROL.ADMIN_ROLE;
 
 // Tope para que un administrador modifique un comprobante emitido: dias atras desde hoy (inclusive)
 const DIAS_MAX_ADMIN = 15;
+// Si el comprobante nuevo es una nota de despacho (no se envia a SUNAT y conserva la fecha de la factura), el tope es mayor
+const MESES_MAX_NOTA_DESPACHO = 2;
+
+// El celular es obligatorio al rectificar: al menos 9 digitos (formato peruano), sin importar espacios o guiones
+const celularValido = (celular?: string) => (celular || '').replace(/\D/g, '').length >= 9;
+const MENSAJE_CELULAR = 'Ingresa el celular de contacto (9 dígitos) para poder emitir la rectificación';
 
 interface IElegibilidad {
     ok: boolean;
@@ -25,13 +31,19 @@ interface IElegibilidad {
     numeracion: string;
     islaId: number;
     solicitudId: number | null;
+    // Solo administrador: el comprobante supera DIAS_MAX_ADMIN dias y unicamente se puede convertir en nota de despacho
+    soloNotaDespacho?: boolean;
+    // Fecha de emision del comprobante original (AAAA-MM-DD)
+    fechaEmision?: string;
 }
 
 // Reglas para que un grifero pueda corregir un comprobante: es de su isla, todavía no tiene
 // cierre de turno, es una factura o boleta ya aceptada, no tiene nota de crédito ni una solicitud previa.
 // El administrador (admin=true) modifica directamente, sin solicitud del grifero: de cualquier isla, con o sin
-// turno cerrado, pero solo comprobantes emitidos en los ultimos DIAS_MAX_ADMIN dias.
-async function validarElegibilidad(comprobanteId: number, islaSesion: number, admin = false): Promise<IElegibilidad> {
+// turno cerrado, pero solo comprobantes emitidos en los ultimos DIAS_MAX_ADMIN dias; si el comprobante nuevo sera una nota de
+// despacho (aNotaDespacho=true) el tope es de MESES_MAX_NOTA_DESPACHO meses. Sin aNotaDespacho=true y con admin=true, se valida
+// la ventana amplia (la pantalla decide despues que opciones ofrecer segun soloNotaDespacho).
+async function validarElegibilidad(comprobanteId: number, islaSesion: number, admin = false, aNotaDespacho: boolean | 'ventana' = false): Promise<IElegibilidad> {
     const no = (message: string): IElegibilidad => ({ ok: false, message, total: 0, numeracion: '', islaId: 0, solicitudId: null });
     if (!Number.isInteger(comprobanteId) || comprobanteId <= 0) return no('Comprobante no válido');
     if (!admin && !islaSesion) return no('Tu usuario no tiene una isla asignada');
@@ -43,6 +55,8 @@ async function validarElegibilidad(comprobanteId: number, islaSesion: number, ad
                 (SELECT TOP 1 s.id FROM SolicitudesCorreccion s WHERE s.ComprobanteId = c.id) AS solicitud_id,
                 (SELECT TOP 1 s.estado FROM SolicitudesCorreccion s WHERE s.ComprobanteId = c.id) AS solicitud_estado,
                 DATEDIFF(day, c.fecha_emision, CAST(DATEADD(hour, -5, GETUTCDATE()) AS date)) AS dias,
+                CASE WHEN c.fecha_emision >= DATEADD(month, -${MESES_MAX_NOTA_DESPACHO}, CAST(DATEADD(hour, -5, GETUTCDATE()) AS date)) THEN 1 ELSE 0 END AS dentro_meses,
+                CONVERT(varchar(10), c.fecha_emision, 120) AS fecha_emision_iso,
                 (SELECT COUNT(*) FROM Comprobantes nc WHERE nc.tipo_comprobante = '07' AND nc.numeracion_documento_afectado = c.numeracion_comprobante) AS notas_credito
          FROM Comprobantes c WHERE c.id = @id`,
         [{ name: 'id', value: comprobanteId, type: sql.Int }]);
@@ -54,12 +68,19 @@ async function validarElegibilidad(comprobanteId: number, islaSesion: number, ad
     const ok = (): IElegibilidad => ({ ok: true, message: '', total: Number(c.total), numeracion: c.numeracion_comprobante, islaId: Number(c.IslaId) || 0, solicitudId: c.solicitud_id ?? null });
     if (admin) {
         if (c.notas_credito > 0) return no('El comprobante ya tiene una nota de crédito');
-        if (Number(c.dias) > DIAS_MAX_ADMIN) return no(`Solo se pueden modificar comprobantes de los últimos ${DIAS_MAX_ADMIN} días`);
         if (Number(c.dias) < 0) return no('La fecha de emisión del comprobante es posterior a hoy');
+        const dentroDias = Number(c.dias) <= DIAS_MAX_ADMIN;
+        const dentroMeses = Number(c.dentro_meses) === 1;
+        const exigeMeses = aNotaDespacho !== false;
+        if (exigeMeses ? !dentroMeses : !dentroDias) {
+            return no(aNotaDespacho
+                ? `Solo se pueden modificar comprobantes de los últimos ${MESES_MAX_NOTA_DESPACHO} meses`
+                : `Solo se pueden modificar comprobantes de los últimos ${DIAS_MAX_ADMIN} días (hasta ${MESES_MAX_NOTA_DESPACHO} meses si se convierte en nota de despacho)`);
+        }
         if (c.solicitud_estado === 'PENDIENTE') return no('Este comprobante tiene una corrección pendiente del grifero: apruébala o recházala desde el histórico');
         if (c.solicitud_estado === 'APROBADA') return no('Este comprobante ya fue corregido');
         // RECHAZADA: el administrador si puede corregirlo directamente
-        return ok();
+        return { ...ok(), soloNotaDespacho: !dentroDias, fechaEmision: c.fecha_emision_iso };
     }
     if (c.CierreturnoId) return no('El turno de este comprobante ya fue cerrado');
     if (Number(c.IslaId) !== islaSesion) return no('Solo puedes corregir comprobantes de tu isla');
@@ -70,8 +91,9 @@ async function validarElegibilidad(comprobanteId: number, islaSesion: number, ad
 export async function verificarCorreccion(comprobanteId: number): Promise<IRespuestaCorreccion> {
     const session = await auth();
     if (!session?.user) return { status: false, message: 'Sesión no válida' };
-    const r = await validarElegibilidad(comprobanteId, Number(session.user.islaId) || 0, esAdmin(session.user.rol));
-    return { status: r.ok, message: r.message };
+    const admin = esAdmin(session.user.rol);
+    const r = await validarElegibilidad(comprobanteId, Number(session.user.islaId) || 0, admin, admin ? 'ventana' : false);
+    return { status: r.ok, message: r.message, soloNotaDespacho: r.soloNotaDespacho, fechaEmision: r.fechaEmision };
 }
 
 export async function crearSolicitudCorreccion(input: ICorreccionInput): Promise<IRespuestaCorreccion> {
@@ -89,6 +111,7 @@ export async function crearSolicitudCorreccion(input: ICorreccionInput): Promise
     if (!razon || razon === '0') return { status: false, message: 'Ingresa la razón social' };
     const observaciones = (input.observaciones || '').trim();
     if (observaciones.length < 5) return { status: false, message: 'Escribe la razón del cambio en las observaciones' };
+    if (!celularValido(input.celular)) return { status: false, message: MENSAJE_CELULAR };
 
     const efectivo = Number(input.efectivo) || 0, tarjeta = Number(input.tarjeta) || 0, yape = Number(input.yape) || 0;
     if (Math.abs(efectivo + tarjeta + yape - elegible.total) > 0.01) {
@@ -127,7 +150,7 @@ export async function crearSolicitudCorreccion(input: ICorreccionInput): Promise
     }
 }
 
-// El administrador modifica un comprobante emitido (hasta DIAS_MAX_ADMIN dias atras) sin esperar solicitud del grifero.
+// El administrador modifica un comprobante emitido (hasta DIAS_MAX_ADMIN dias atras, o MESES_MAX_NOTA_DESPACHO meses si pasa a nota de despacho) sin esperar solicitud del grifero.
 // Reutiliza el flujo de aprobacion (nota de credito + comprobante nuevo): registra la correccion ya a nombre del
 // administrador y la aprueba en el acto. Si algo falla a la mitad, se puede volver a intentar sin repetir la nota de crédito.
 export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespuestaCorreccion> {
@@ -135,15 +158,19 @@ export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespu
     if (!esAdmin(session?.user?.rol)) return { status: false, message: 'Solo un administrador puede modificar comprobantes directamente' };
     const adminId = Number(session?.user?.id);
 
-    const elegible = await validarElegibilidad(input.ComprobanteId, 0, true);
+    // El comprobante nuevo puede ser una nota de despacho (queda con la fecha de la factura y hasta 2 meses atras)
+    const aNotaDespacho = !!input.notaDespacho;
+    const elegible = await validarElegibilidad(input.ComprobanteId, 0, true, aNotaDespacho);
     if (!elegible.ok) return { status: false, message: elegible.message };
 
     const numero = (input.numero_documento || '').trim();
     if (!/^\d{8}$|^\d{11}$/.test(numero)) return { status: false, message: 'Ingresa un DNI (8 dígitos) o un RUC (11 dígitos)' };
+    if (aNotaDespacho && numero.length !== 11) return { status: false, message: 'La nota de despacho se emite solo con RUC (11 dígitos)' };
     const razon = (input.razon_social || '').trim();
     if (!razon || razon === '0') return { status: false, message: 'Ingresa la razón social' };
     const observaciones = (input.observaciones || '').trim();
     if (observaciones.length < 5) return { status: false, message: 'Escribe la razón del cambio en las observaciones' };
+    if (!celularValido(input.celular)) return { status: false, message: MENSAJE_CELULAR };
     const efectivo = Number(input.efectivo) || 0, tarjeta = Number(input.tarjeta) || 0, yape = Number(input.yape) || 0;
     if (Math.abs(efectivo + tarjeta + yape - elegible.total) > 0.01) {
         return { status: false, message: 'La suma de los pagos no coincide con el total del comprobante' };
@@ -163,6 +190,7 @@ export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespu
         { name: 'yape', value: Math.round(yape * 100) / 100, type: sql.Float },
         { name: 'observaciones', value: `[Administrador] ${observaciones}`.slice(0, 500), type: sql.NVarChar },
         { name: 'comentario', value: (input.comentario || '').trim().slice(0, 200) || null, type: sql.NVarChar },
+        { name: 'tipoNuevo', value: aNotaDespacho ? Constants.TIPO_COMPROBANTE.NOTA_DESPACHO : null, type: sql.NVarChar },
         { name: 'UsuarioId', value: adminId, type: sql.Int },
         { name: 'IslaId', value: elegible.islaId, type: sql.Int },
     ];
@@ -175,7 +203,7 @@ export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespu
                 `UPDATE SolicitudesCorreccion
                  SET tipo_documento = @tipo, numero_documento = @numero, razon_social = @razon, direccion = @direccion, placa = @placa,
                      celular = @celular, pago_efectivo = @efectivo, pago_tarjeta = @tarjeta, pago_yape = @yape, observaciones = @observaciones,
-                     comentario_comprobante = @comentario, UsuarioId = @UsuarioId, IslaId = @IslaId, estado = 'PENDIENTE', motivo_rechazo = NULL, fecha_resolucion = NULL,
+                     comentario_comprobante = @comentario, tipo_comprobante_nuevo = @tipoNuevo, UsuarioId = @UsuarioId, IslaId = @IslaId, estado = 'PENDIENTE', motivo_rechazo = NULL, fecha_resolucion = NULL,
                      fecha_solicitud = GETDATE()
                  WHERE id = @id AND estado = 'RECHAZADA'`,
                 [...parametros, { name: 'id', value: solicitudId, type: sql.Int }]);
@@ -183,10 +211,10 @@ export async function corregirComoAdmin(input: ICorreccionInput): Promise<IRespu
             const filas = await executeQuery<{ id: number }[]>(db(),
                 `INSERT INTO SolicitudesCorreccion
                     (ComprobanteId, numeracion_comprobante, tipo_documento, numero_documento, razon_social, direccion, placa, celular,
-                     pago_efectivo, pago_tarjeta, pago_yape, observaciones, comentario_comprobante, UsuarioId, IslaId)
+                     pago_efectivo, pago_tarjeta, pago_yape, observaciones, comentario_comprobante, tipo_comprobante_nuevo, UsuarioId, IslaId)
                  OUTPUT inserted.id
                  VALUES (@ComprobanteId, @numeracion, @tipo, @numero, @razon, @direccion, @placa, @celular,
-                     @efectivo, @tarjeta, @yape, @observaciones, @comentario, @UsuarioId, @IslaId)`, parametros);
+                     @efectivo, @tarjeta, @yape, @observaciones, @comentario, @tipoNuevo, @UsuarioId, @IslaId)`, parametros);
             solicitudId = filas?.[0]?.id ?? null;
         }
         if (!solicitudId) return { status: false, message: 'No se pudo registrar la corrección' };
@@ -302,12 +330,16 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
                 [{ name: 'n', value: ncNumeracion, type: sql.NVarChar }, { name: 'id', value: id, type: sql.Int }]);
         }
 
-        // 2) Comprobante nuevo con los datos corregidos (factura si es RUC, boleta si es DNI)
+        // 2) Comprobante nuevo con los datos corregidos (factura si es RUC, boleta si es DNI; nota de despacho si el
+        //    administrador asi lo pidio: esa queda con la fecha de la factura original y no se envia a SUNAT)
         let nuevoNumeracion = sol.nuevo_numeracion;
         if (!nuevoNumeracion) {
+            const esNotaDespacho = sol.tipo_comprobante_nuevo === Constants.TIPO_COMPROBANTE.NOTA_DESPACHO;
             const esRuc = sol.numero_documento.length === 11;
+            if (esNotaDespacho && !esRuc) throw new Error('La nota de despacho se emite solo con RUC (11 dígitos)');
             const nuevo = { ...original } as IComprobanteAdmin;
-            nuevo.tipo_comprobante = esRuc ? Constants.TIPO_COMPROBANTE.FACTURA : Constants.TIPO_COMPROBANTE.BOLETA;
+            if (esNotaDespacho) nuevo.tipo_comprobante = Constants.TIPO_COMPROBANTE.NOTA_DESPACHO;
+            else nuevo.tipo_comprobante = esRuc ? Constants.TIPO_COMPROBANTE.FACTURA : Constants.TIPO_COMPROBANTE.BOLETA;
             nuevo.Receptor = {
                 id: 0,
                 tipo_documento: sol.tipo_documento,
@@ -321,7 +353,7 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
             if (sol.comentario_comprobante) nuevo.comentario = sol.comentario_comprobante;
             nuevo.items = (original.items || []).map(item => {
                 const base = { ...item, placa: sol.placa ?? '' };
-                if (!esRuc) return base;
+                if (!esRuc || esNotaDespacho) return base;
                 // Factura: cantidad exacta para que SUNAT no rechace el precio unitario (ver cantidad-factura.ts)
                 const cantidad = cantidadParaFactura(Number(item.precio_venta), Number(item.precio_unitario), Number(item.cantidad_venta));
                 return { ...base, cantidad: String(cantidad), cantidad_venta: cantidad };
@@ -334,8 +366,16 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
             nuevo.fecha_documento_afectado = null;
             nuevo.numeracion_documento_afectado = null;
             nuevo.motivo_documento_afectado = null;
-            nuevo.fecha_emision = ahora;
-            nuevo.fecha_hora = ahora;
+            if (esNotaDespacho) {
+                // Misma fecha (y hora) de la factura original: no es editable ni viene del formulario
+                nuevo.fecha_emision = fechaOriginal;
+                nuevo.fecha_hora = original.fecha_hora
+                    ? moment.utc(original.fecha_hora as unknown as string).format("YYYY-MM-DD HH:mm:ss")
+                    : ahora;
+            } else {
+                nuevo.fecha_emision = ahora;
+                nuevo.fecha_hora = ahora;
+            }
             // Conserva la hora real del despacho (mismo criterio que el modelo Comprobante)
             nuevo.fecha_abastecimiento = original.fecha_abastecimiento
                 ? moment.utc(original.fecha_abastecimiento as unknown as string).format("YYYY-MM-DD HH:mm:ss")
@@ -347,8 +387,12 @@ export async function aprobarSolicitud(id: number): Promise<IRespuestaCorreccion
             nuevo.notas = [];
             nuevo.impresion = 0;
             nuevo.enviado = 0;
-            nuevo.es_credito = !!original.es_credito;
-            const bill = await saveBillingTransaction(nuevo, { omitirStock: true, esCorreccion: true });
+            // La nota de despacho no es venta al credito (el credito se restituye con la nota de credito del original)
+            nuevo.es_credito = esNotaDespacho ? false : !!original.es_credito;
+            nuevo.estado_nota_despacho = null;
+            nuevo.comprobante_nota_despacho = null;
+            nuevo.fecha_facturado_nota_despacho = null;
+            const bill = await saveBillingTransaction(nuevo, { omitirStock: true, esCorreccion: true, fechaEmisionFija: esNotaDespacho });
             if (bill.id) generarPdfAlEmitir(Number(bill.id), bill.tipo_comprobante);
             nuevoNumeracion = bill.numeracion_comprobante;
             await executeQuery(db(), `UPDATE SolicitudesCorreccion SET nuevo_numeracion = @n WHERE id = @id`,

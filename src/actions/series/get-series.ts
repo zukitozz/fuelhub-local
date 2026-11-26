@@ -66,7 +66,8 @@ export async function getSerieActivaRetroactiva(tipo_comprobante: string, usuari
     try {
         const dbName = process.env.DB_DATABASE_AUXILIAR || "";
         const usuario = await executeQuery<{ rol: string }[]>(dbName, `SELECT rol FROM Usuarios WHERE id = ${usuarioId}`);
-        const codigoProposito = usuario[0]?.rol === Constants.ROL.ADMIN_ROLE
+        // La nota de despacho usa la serie de los despachadores aunque la emita un administrador (igual que saveBillingTransaction)
+        const codigoProposito = usuario[0]?.rol === Constants.ROL.ADMIN_ROLE && tipo_comprobante !== Constants.TIPO_COMPROBANTE.NOTA_DESPACHO
             ? Constants.CODIGO_PROPOSITO.ADMIN
             : Constants.CODIGO_PROPOSITO.INTERNA;
 

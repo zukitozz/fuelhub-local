@@ -46,7 +46,7 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
     const puedeCorregir = (item: IComprobanteHistorico) =>
         ['01', '03'].includes(item.tipo_codigo ?? '') && !!item.enviado && !item.errors && !item.numeracion_documento_afectado
         && !item.CierreturnoId && !item.correccion_estado && islaSesion > 0 && Number(item.IslaId) === islaSesion;
-    // El administrador corrige directamente facturas/boletas aceptadas de los ultimos 15 dias (sin importar isla ni cierre de turno);
+    // El administrador corrige directamente facturas/boletas aceptadas de los ultimos 2 meses (sin importar isla ni cierre de turno);
     // el servidor lo vuelve a validar
     // fecha_emision llega como Date (medianoche UTC) desde la accion del servidor: se pasa a AAAA-MM-DD en UTC, igual que hoy
     const hoyLima = new Date(Date.now() - (5 * 60 * 60 * 1000)).toISOString().slice(0, 10);
@@ -54,9 +54,19 @@ export const HistoricosTable = ({ page, perPage }: TableProps) => {
         const emision = new Date(item.fecha_emision);
         return Number.isNaN(emision.getTime()) ? NaN : Math.round((Date.parse(hoyLima) - Date.parse(emision.toISOString().slice(0, 10))) / 86400000);
     };
+    // Hasta 2 meses atras (los ultimos 15 dias como factura/boleta; mas atras solo como nota de despacho: la pantalla de modificar lo limita)
+    const limiteDosMeses = (() => {
+        const limite = new Date(`${hoyLima}T00:00:00Z`);
+        limite.setUTCMonth(limite.getUTCMonth() - 2);
+        return limite.toISOString().slice(0, 10);
+    })();
+    const dentroDeDosMeses = (item: IComprobanteHistorico) => {
+        const emision = new Date(item.fecha_emision);
+        return !Number.isNaN(emision.getTime()) && emision.toISOString().slice(0, 10) >= limiteDosMeses && diasDesdeEmision(item) >= 0;
+    };
     const puedeCorregirAdmin = (item: IComprobanteHistorico) =>
         ['01', '03'].includes(item.tipo_codigo ?? '') && !!item.enviado && !item.errors && !item.nc_en_espera && !item.numeracion_documento_afectado
-        && item.correccion_estado !== 'PENDIENTE' && item.correccion_estado !== 'APROBADA' && diasDesdeEmision(item) <= 15 && diasDesdeEmision(item) >= 0;
+        && item.correccion_estado !== 'PENDIENTE' && item.correccion_estado !== 'APROBADA' && dentroDeDosMeses(item);
     const [date, setDate] = useState<string>(toLocaleOnlyDate(new Date(Date.now() - (5 * 60 * 60 * 1000))));   
     const [numeracion, setNumeracion] = useState<string>(''); 
     const [currentPage, setCurrentPage] = useState(1);

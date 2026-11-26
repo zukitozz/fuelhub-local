@@ -62,6 +62,15 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
     const { tipoComprobante, tipoDocumento, numeroDocumento, razonSocial, placa, direccion, efectivo, tarjeta, yape } = formValues;
     const UsuarioId = +(session?.user.id || 0);
 
+    // El administrador solo puede emitir notas de despacho: se deja ese tipo elegido y es el unico que se ofrece
+    // (no aplica a la consolidacion de notas de despacho en una factura: ahi el tipo lo fija el efecto de las notas)
+    const soloNotaDespacho = session?.user?.rol === Constants.ROL.ADMIN_ROLE && notas.length === 0;
+    useEffect(() => {
+        if (soloNotaDespacho && tipoComprobante !== Constants.TIPO_COMPROBANTE.NOTA_DESPACHO) {
+            setFormValues(prevValues => ({ ...prevValues, tipoComprobante: Constants.TIPO_COMPROBANTE.NOTA_DESPACHO }));
+        }
+    }, [soloNotaDespacho, tipoComprobante]);
+
     // La serie activa (segun rol del usuario) decide si se puede elegir una fecha de
     // emision retroactiva para el tipo de comprobante actualmente seleccionado.
     const [permiteFechaRetroactiva, setPermiteFechaRetroactiva] = useState(false);
@@ -246,7 +255,12 @@ export const BillingForm = ({ orders, subTotal, totalIgv, total }: Props) => {
         <div className="flex justify-between items-center">
             <h2 className="text-2xl mb-2 font-bold text-slate-800">{getTitle()}</h2>
         </div>
-        <TipoComprobanteSelector formValues={formValues} setFormValues={setFormValues} disabled={isDisabled} />
+        <TipoComprobanteSelector
+            formValues={formValues}
+            setFormValues={setFormValues}
+            disabled={isDisabled}
+            soloTipos={soloNotaDespacho ? [Constants.TIPO_COMPROBANTE.NOTA_DESPACHO] : undefined}
+        />
         <div className="flex flex-col mt-5">
 
             <form onSubmit={handlerProcessBilling} autoComplete="off" className="flex flex-col">

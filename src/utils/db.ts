@@ -52,7 +52,9 @@ import { toLocaleStorage } from './formats';
     // stock de tienda: la mercaderia se vendio una sola vez y ya se desconto con el comprobante original.
     // esCorreccion: el comprobante nuevo que reemplaza a otro corregido; es lo unico que un administrador puede emitir
     // ademas de notas de credito (un administrador modifica comprobantes, no genera ventas nuevas).
-    export async function saveBillingTransaction(comprobante: IComprobanteAdmin, opciones: { omitirStock?: boolean; esCorreccion?: boolean } = {}): Promise<IComprobanteAdmin> {
+    // fechaEmisionFija: la fecha de emision viene fijada por el sistema (una nota de despacho que reemplaza a una factura conserva
+    // la fecha de esa factura), asi que no exige que la serie permita fecha retroactiva. Nunca puede ser posterior a hoy.
+    export async function saveBillingTransaction(comprobante: IComprobanteAdmin, opciones: { omitirStock?: boolean; esCorreccion?: boolean; fechaEmisionFija?: boolean } = {}): Promise<IComprobanteAdmin> {
         config.database = process.env.DB_DATABASE_AUXILIAR||"";
         try {
             const { 
@@ -116,10 +118,14 @@ import { toLocaleStorage } from './formats';
                     if (tipo_comprobante === Constants.TIPO_COMPROBANTE.NOTA_CREDITO && usuarioEmisor.recordset[0]?.rol !== Constants.ROL.ADMIN_ROLE) {
                         throw new Error('Solo un administrador puede emitir notas de crédito');
                     }
-                    if (usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE && tipo_comprobante !== Constants.TIPO_COMPROBANTE.NOTA_CREDITO && !opciones.esCorreccion) {
-                        throw new Error('Un administrador no puede emitir comprobantes nuevos: solo puede modificar los ya emitidos');
+                    //El administrador solo emite notas de credito, notas de despacho y el comprobante nuevo de una correccion
+                    if (usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE && tipo_comprobante !== Constants.TIPO_COMPROBANTE.NOTA_CREDITO
+                        && tipo_comprobante !== Constants.TIPO_COMPROBANTE.NOTA_DESPACHO && !opciones.esCorreccion) {
+                        throw new Error('Un administrador solo puede emitir notas de despacho; las demás ventas se emiten por los despachadores. Para cambiar un comprobante ya emitido usa Modificar');
                     }
-                    const codigoProposito = usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE
+                    //La nota de despacho es un documento interno (no va a SUNAT) y comparte la serie de los despachadores aunque la emita un
+                    //administrador: no hay serie de administrador para ella.
+                    const codigoProposito = usuarioEmisor.recordset[0]?.rol === Constants.ROL.ADMIN_ROLE && tipo_comprobante !== Constants.TIPO_COMPROBANTE.NOTA_DESPACHO
                         ? Constants.CODIGO_PROPOSITO.ADMIN
                         : Constants.CODIGO_PROPOSITO.INTERNA;
 
@@ -158,7 +164,7 @@ import { toLocaleStorage } from './formats';
                         if (fechaEmisionSolicitada > fechaHoy) {
                             throw new Error('La fecha de emisión no puede ser posterior a hoy');
                         }
-                        if (!serieFechaRetroactiva) {
+                        if (!serieFechaRetroactiva && !opciones.fechaEmisionFija) {
                             throw new Error('Esta serie no permite emitir comprobantes con fecha retroactiva');
                         }
                     }
